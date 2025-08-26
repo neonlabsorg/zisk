@@ -53,6 +53,7 @@ use crate::{ZiskInst, ZiskInstBuilder, ROM_ADDR, ROM_ENTRY};
 
 use sbpf_elf_parser::ProcessedElf;
 
+const TRANSLATE_REG: u64 = 2;
 const FRAME_REGS_PTR: u64 = 3;
 const BASE_REG: u64 = 4;
 const STORE_REG: u64 = BASE_REG + 12;
@@ -81,7 +82,7 @@ type PcCallMap = BTreeMap<u64, u64>;
 
 /// ZisK ROM implementation
 impl ZiskRom {
-    fn transpile_op(op: &solana_sbpf::ebpf::Insn, pc: u64, version: &SBPFVersion, call_map: &PcCallMap) -> Vec<ZiskInst> {
+    fn transpile_op(op: &solana_sbpf::ebpf::Insn, pc: u64, translate_pc_routine: u64, version: &SBPFVersion, call_map: &PcCallMap) -> Vec<ZiskInst> {
         use solana_sbpf::ebpf::*;
         let (width, mask) = if BPF_B & op.opc != 0 {
             (1, (1_u64 << 8) - 1)
@@ -881,13 +882,32 @@ impl ZiskRom {
                 } else {
                     op.imm as u8
                 };
-                vec![]
+                vec![{
+                    let mut builder = ZiskInstBuilder::new(pc);
+                    builder.src_a("reg", reg_for_bpf_reg(target_reg), false);
+                    builder.src_b("reg", reg_for_bpf_reg(target_reg), false);
+                    builder.op("copyb").unwrap();
+                    builder.store("reg", TRANSLATE_REG as i64, false, false);
+                    builder.i
+                }].into_iter().chain(
+                    Self::gen_push_frame(pc + 1, pc + TRANSPILE_ALIGN as u64,
+                        |pc| {
+                            let mut builder = ZiskInstBuilder::new(pc);
+                            builder.src_a("imm", translate_pc_routine, false);
+                            builder.src_b("imm", translate_pc_routine, false);
+                            builder.op("copyb").unwrap();
+                            builder.store("reg", SCRATCH_REG as i64, false, false);
+                            builder.set_pc();
+                            builder.i
+                        }).into_iter())
+                .collect()
             },
 
             _ => vec![]
         }
     }
 
+    // generates 15 instructions
     fn gen_push_frame(pc: u64, ret_pc: u64, gen_jump: impl Fn(u64) -> ZiskInst) -> Vec<ZiskInst> {
         // 12 bpf registers + pc
         // 13 * u64 = 104
@@ -962,10 +982,13 @@ impl ZiskRom {
         const ENTRYPOINT_KEY: u32 = 0x71E3CF81;
         let entry_pc = program.function_registry.lookup_by_key(ENTRYPOINT_KEY).unwrap().1 as u64;
 
-        let sys_pc = ROM_ENTRY + 2 * TRANSPILE_ALIGN as u64;
+        let sys_pc = ROM_ENTRY + 4 * TRANSPILE_ALIGN as u64;
         for (key, (_symbol, pc)) in bios.function_registry.iter() {
             call_map.insert(key as u64, sys_pc + pc as u64 * TRANSPILE_ALIGN as u64);
         }
+
+        let sys_translate_pc_routine = ROM_ENTRY + 2 * TRANSPILE_ALIGN as u64;
+        let user_translate_pc_routine = ROM_ENTRY + 2 * TRANSPILE_ALIGN as u64;
 
         let mut system_instructions = vec![
             Self::gen_push_frame(
@@ -987,19 +1010,73 @@ impl ZiskRom {
                 builder.store("reg", SCRATCH_REG as i64, false, false);
                 builder.end();
                 builder.i
-            }]
+            }],
+            vec![
+                {
+                    let mut builder = ZiskInstBuilder::new(sys_translate_pc_routine);
+                    builder.src_a("imm", TRANSPILE_ALIGN as u64, false);
+                    builder.src_b("reg", TRANSLATE_REG, false);
+                    builder.op("mulu").unwrap();
+                    builder.store("reg", TRANSLATE_REG as i64, false, false);
+                    builder.i
+                },
+                {
+                    let mut builder = ZiskInstBuilder::new(sys_translate_pc_routine + 1);
+                    builder.src_a("imm", sys_pc, false);
+                    builder.src_b("reg", TRANSLATE_REG, false);
+                    builder.op("add").unwrap();
+                    builder.store("reg", TRANSLATE_REG as i64, false, false);
+                    builder.i
+                },
+                {
+                    let mut builder = ZiskInstBuilder::new(sys_translate_pc_routine + 2);
+                    builder.src_a("reg", TRANSLATE_REG, false);
+                    builder.src_b("reg", TRANSLATE_REG, false);
+                    builder.op("copyb").unwrap();
+                    builder.store("reg", SCRATCH_REG as i64, false, false);
+                    builder.set_pc();
+                    builder.i
+                }
+            ],
+            vec![
+                {
+                    let mut builder = ZiskInstBuilder::new(user_translate_pc_routine);
+                    builder.src_a("imm", TRANSPILE_ALIGN as u64, false);
+                    builder.src_b("reg", TRANSLATE_REG, false);
+                    builder.op("mulu").unwrap();
+                    builder.store("reg", TRANSLATE_REG as i64, false, false);
+                    builder.i
+                },
+                {
+                    let mut builder = ZiskInstBuilder::new(user_translate_pc_routine + 1);
+                    builder.src_a("imm", ROM_ADDR, false);
+                    builder.src_b("reg", TRANSLATE_REG, false);
+                    builder.op("add").unwrap();
+                    builder.store("reg", TRANSLATE_REG as i64, false, false);
+                    builder.i
+                },
+                {
+                    let mut builder = ZiskInstBuilder::new(sys_translate_pc_routine + 2);
+                    builder.src_a("reg", TRANSLATE_REG, false);
+                    builder.src_b("reg", TRANSLATE_REG, false);
+                    builder.op("copyb").unwrap();
+                    builder.store("reg", SCRATCH_REG as i64, false, false);
+                    builder.set_pc();
+                    builder.i
+                }
+            ],
         ];
 
         system_instructions = system_instructions.into_iter()
             .chain(bios.all_lines.as_slice().iter().map(|op| 
-                    Self::transpile_op(&op, sys_pc + op.ptr as u64 * TRANSPILE_ALIGN as u64, &bios.sbpf_version, &call_map)))
+                    Self::transpile_op(&op, sys_pc + op.ptr as u64 * TRANSPILE_ALIGN as u64, sys_translate_pc_routine, &bios.sbpf_version, &call_map)))
             .collect();
 
         for (key, (_symbol, pc)) in program.function_registry.iter() {
             call_map.insert(key as u64, ROM_ADDR + pc as u64 * TRANSPILE_ALIGN as u64);
         }
         let transpiled_instructions = program.all_lines.as_slice().iter().map(|op| 
-            Self::transpile_op(op, ROM_ADDR + op.ptr as u64 * TRANSPILE_ALIGN as u64, &program.sbpf_version, &call_map)).collect();
+            Self::transpile_op(op, ROM_ADDR + op.ptr as u64 * TRANSPILE_ALIGN as u64, user_translate_pc_routine, &program.sbpf_version, &call_map)).collect();
 
         Self {
             key,
