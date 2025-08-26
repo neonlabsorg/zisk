@@ -181,6 +181,77 @@ impl ZiskRom {
             ""
         };
 
+        let load_impl = if op.off < 0 {
+            vec![
+                {
+                    let mut builder = ZiskInstBuilder::new(pc);
+                    builder.src_b("reg", reg_for_bpf_reg(op.src), false);
+                    builder.store("reg", SCRATCH_REG as i64, false, false);
+                    builder.op("copyb").unwrap();
+                    builder.j(1, 1);
+                    builder.i
+                },
+                {
+                    let mut builder = ZiskInstBuilder::new(pc + 1);
+                    builder.src_a("reg", SCRATCH_REG, false);
+                    builder.src_b("reg", (-op.off).try_into().unwrap(), false);
+                    builder.store("reg", SCRATCH_REG as i64, false, false);
+                    builder.op("sub").unwrap();
+                    builder.j(1, 1);
+                    builder.i
+                },
+                {
+                    let mut builder = ZiskInstBuilder::new(pc + 2);
+                    builder.src_a("reg", SCRATCH_REG, false);
+                    builder.src_b("ind", op.off.try_into().unwrap(), false);
+                    builder.store("reg", ireg_for_bpf_reg(op.dst), false, false);
+                    builder.op("copyb").unwrap();
+                    builder.ind_width(width);
+                    builder.j(TRANSPILE_ALIGN - 2, TRANSPILE_ALIGN - 2);
+                    builder.i
+                }
+            ]
+        } else {
+            vec![
+                {
+                    let mut builder = ZiskInstBuilder::new(pc);
+                    builder.src_a("reg", reg_for_bpf_reg(op.src), false);
+                    builder.src_b("ind", op.off.try_into().unwrap(), false);
+                    builder.store("reg", ireg_for_bpf_reg(op.dst), false, false);
+                    builder.op("copyb").unwrap();
+                    builder.ind_width(width);
+                    builder.j(TRANSPILE_ALIGN, TRANSPILE_ALIGN);
+                    builder.i
+                }
+            ]
+        };
+
+        let store_reg_impl = vec![
+            {
+                let mut builder = ZiskInstBuilder::new(pc);
+                builder.src_a("reg", reg_for_bpf_reg(op.dst), false);
+                builder.src_b("reg", reg_for_bpf_reg(op.src), false);
+                builder.store("ind", op.off.into(), false, false);
+                builder.op("copyb").unwrap();
+                builder.ind_width(width);
+                builder.j(TRANSPILE_ALIGN, TRANSPILE_ALIGN);
+                builder.i
+            },
+        ];
+
+        let store_imm_impl = vec![ 
+            {
+                let mut builder = ZiskInstBuilder::new(pc);
+                builder.src_a("reg", reg_for_bpf_reg(op.src), false);
+                builder.src_b("imm", op.imm as u64, false);
+                builder.store("ind", op.off.into(), false, false);
+                builder.op("copyb").unwrap();
+                builder.ind_width(width);
+                builder.j(TRANSPILE_ALIGN, TRANSPILE_ALIGN);
+                builder.i
+            },
+        ];
+
         match op.opc {
             LD_DW_IMM => vec![
                 {
@@ -196,84 +267,22 @@ impl ZiskRom {
             // BPF opcode: `ldxh dst, [src + off]` /// `dst = (src + off) as u16`.
             // BPF opcode: `ldxw dst, [src + off]` /// `dst = (src + off) as u32`.
             // BPF opcode: `ldxdw dst, [src + off]` /// `dst = (src + off) as u64`.
-            LD_1B_REG | LD_2B_REG | LD_4B_REG | LD_8B_REG | LD_B_REG | LD_H_REG | LD_W_REG | LD_DW_REG => if op.off < 0 {
-                vec![
-                    {
-                        let mut builder = ZiskInstBuilder::new(pc);
-                        builder.src_b("reg", reg_for_bpf_reg(op.src), false);
-                        builder.store("reg", SCRATCH_REG as i64, false, false);
-                        builder.op("copyb").unwrap();
-                        builder.j(1, 1);
-                        builder.i
-                    },
-                    {
-                        let mut builder = ZiskInstBuilder::new(pc + 1);
-                        builder.src_a("reg", SCRATCH_REG, false);
-                        builder.src_b("reg", (-op.off).try_into().unwrap(), false);
-                        builder.store("reg", SCRATCH_REG as i64, false, false);
-                        builder.op("sub").unwrap();
-                        builder.j(1, 1);
-                        builder.i
-                    },
-                    {
-                        let mut builder = ZiskInstBuilder::new(pc + 2);
-                        builder.src_a("reg", SCRATCH_REG, false);
-                        builder.src_b("ind", op.off.try_into().unwrap(), false);
-                        builder.store("reg", ireg_for_bpf_reg(op.dst), false, false);
-                        builder.op("copyb").unwrap();
-                        builder.ind_width(width);
-                        builder.j(TRANSPILE_ALIGN - 2, TRANSPILE_ALIGN - 2);
-                        builder.i
-                    }
-                ]
-            } else {
-                vec![
-                    {
-                        let mut builder = ZiskInstBuilder::new(pc);
-                        builder.src_a("reg", reg_for_bpf_reg(op.src), false);
-                        builder.src_b("ind", op.off.try_into().unwrap(), false);
-                        builder.store("reg", ireg_for_bpf_reg(op.dst), false, false);
-                        builder.op("copyb").unwrap();
-                        builder.ind_width(width);
-                        builder.j(TRANSPILE_ALIGN, TRANSPILE_ALIGN);
-                        builder.i
-                    }
-                ]
-            },
+            LD_B_REG | LD_H_REG | LD_W_REG | LD_DW_REG if !version.move_memory_instruction_classes() => load_impl,
+            LD_1B_REG | LD_2B_REG | LD_4B_REG | LD_8B_REG if version.move_memory_instruction_classes() => load_impl,
 
             // BPF opcode: `stb [dst + off], imm` /// `(dst + offset) as u8 = imm`.
             // BPF opcode: `sth [dst + off], imm` /// `(dst + offset) as u16 = imm`.
             // BPF opcode: `stw [dst + off], imm` /// `(dst + offset) as u32 = imm`.
             // BPF opcode: `stdw [dst + off], imm` /// `(dst + offset) as u64 = imm`.
-           ST_1B_IMM | ST_2B_IMM | ST_4B_IMM | ST_8B_IMM | ST_B_IMM | ST_H_IMM | ST_W_IMM | ST_DW_IMM => vec![ 
-                {
-                    let mut builder = ZiskInstBuilder::new(pc);
-                    builder.src_a("reg", reg_for_bpf_reg(op.src), false);
-                    builder.src_b("imm", op.imm as u64, false);
-                    builder.store("ind", op.off.into(), false, false);
-                    builder.op("copyb").unwrap();
-                    builder.ind_width(width);
-                    builder.j(TRANSPILE_ALIGN, TRANSPILE_ALIGN);
-                    builder.i
-                },
-            ],
+            ST_1B_IMM | ST_2B_IMM | ST_4B_IMM | ST_8B_IMM if version.move_memory_instruction_classes() => store_imm_impl,
+            ST_B_IMM | ST_H_IMM | ST_W_IMM | ST_DW_IMM if !version.move_memory_instruction_classes() => store_imm_impl,
 
             // BPF opcode: `stxb [dst + off], src` /// `(dst + offset) as u8 = src`.
             // BPF opcode: `stxh [dst + off], src` /// `(dst + offset) as u16 = src`.
             // BPF opcode: `stxw [dst + off], src` /// `(dst + offset) as u32 = src`.
             // BPF opcode: `stxdw [dst + off], src` /// `(dst + offset) as u64 = src`.
-            ST_1B_REG | ST_2B_REG | ST_4B_REG | ST_8B_REG | ST_B_REG | ST_H_REG | ST_W_REG | ST_DW_REG => vec![
-                {
-                    let mut builder = ZiskInstBuilder::new(pc);
-                    builder.src_a("reg", reg_for_bpf_reg(op.dst), false);
-                    builder.src_b("reg", reg_for_bpf_reg(op.src), false);
-                    builder.store("ind", op.off.into(), false, false);
-                    builder.op("copyb").unwrap();
-                    builder.ind_width(width);
-                    builder.j(TRANSPILE_ALIGN, TRANSPILE_ALIGN);
-                    builder.i
-                },
-            ],
+            ST_B_REG | ST_H_REG | ST_W_REG | ST_DW_REG if !version.move_memory_instruction_classes() => store_reg_impl,
+            ST_1B_REG | ST_2B_REG | ST_4B_REG | ST_8B_REG if version.move_memory_instruction_classes() => store_reg_impl,
 
             // BPF opcode: `udiv32 dst, imm` /// `dst /= imm`.
             // BPF opcode: `sdiv32 dst, imm` /// `dst /= imm`.
@@ -330,7 +339,7 @@ impl ZiskRom {
             // BPF opcode: `urem64 dst, src` /// `dst %= src`.
             // BPF opcode: `srem64 dst, src` /// `dst %= src`.
             // these are equivalent to zisk counterparts because we validate execution via real sbpf
-            MOD64_REG | MOD32_REG | SREM32_REG | UREM32_REG | UDIV32_REG | DIV64_REG | UDIV64_REG | SDIV64_REG | SDIV32_REG | SDIV32_REG |
+            MOD64_REG | MOD32_REG | SREM32_REG | UREM32_REG | UDIV32_REG | DIV64_REG | UDIV64_REG | SDIV64_REG | SDIV32_REG |
             // BPF opcode: `add32 dst, src` /// `dst += src`.
             // BPF opcode: `mul32 dst, src` /// `dst *= src`.
             // BPF opcode: `lsh32 dst, src` /// `dst <<= src`.
@@ -549,7 +558,7 @@ impl ZiskRom {
 
             // BPF opcode: `neg32 dst` /// `dst = -dst`.
             // BPF opcode: `neg64 dst` /// `dst = -dst`.
-            NEG32 | NEG64 => vec![
+            NEG32 | NEG64 if !version.disable_neg() => vec![
                 {
                     let mut builder = ZiskInstBuilder::new(pc);
                     builder.src_a("imm", 0, false);
@@ -918,6 +927,7 @@ impl ZiskRom {
                 builder.src_b("reg", reg_for_bpf_reg(reg), false);
                 builder.op("copyb").unwrap();
                 builder.store("ind", reg as i64 * 8, false, false);
+                builder.ind_width(8);
                 builder.j(1, 1);
                 builder.i
             })
@@ -928,6 +938,7 @@ impl ZiskRom {
             builder.src_b("imm", ret_pc, false);
             builder.op("copyb").unwrap();
             builder.store("ind", 12*8, false, false);
+            builder.ind_width(8);
             builder.j(1, 1);
             builder.i
         },
@@ -1109,7 +1120,6 @@ impl ZiskRom {
         }
     }
 
-    /// Saves ZisK rom into an i86-64 assembly data string
     pub fn build_constant_trace<F: PrimeField64>(&self) -> Vec<MainTraceRow<F>> {
         let mut inss = 0;
         for ins in self.transpiled_instructions.as_slice().iter().chain(self.system_instructions.as_slice()) {
