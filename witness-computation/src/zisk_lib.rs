@@ -16,9 +16,13 @@ use sm_arith::ArithSM;
 use sm_binary::BinarySM;
 use sm_mem::Mem;
 use sm_rom::RomSM;
+use solana_pubkey::Pubkey;
+use zisk_core::ZiskRom;
 use std::{any::Any, path::PathBuf, sync::Arc};
 use witness::{WitnessLibrary, WitnessManager};
-use zisk_core::Riscv2zisk;
+use mollusk_svm::Mollusk;
+use solana_sdk::bpf_loader_upgradeable;
+use sbpf_elf_parser::{LoadEnv, load_elf_from_path};
 
 const DEFAULT_CHUNK_SIZE_BITS: u64 = 18;
 
@@ -81,10 +85,31 @@ impl<F: PrimeField64> WitnessLibrary<F> for WitnessLib<F> {
     /// Panics if the `Riscv2zisk` conversion fails or if required paths cannot be resolved.
     fn register_witness(&mut self, wcm: Arc<WitnessManager<F>>) {
         // Step 1: Create an instance of the RISCV -> ZisK program converter
-        let rv2zk = Riscv2zisk::new(self.elf_path.display().to_string());
+        let mut runner = Mollusk::default();
+        let mut elf_key: Option<Pubkey> = None;
+        let mut elf_path: Option<PathBuf> = None;
+        let mut stubs_path: Option<PathBuf> = None;
+        for entry in std::fs::read_dir(self.elf_path.display().to_string()).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            let name = entry.file_name();
+            let bytes = std::fs::read(path).unwrap();
+            let key = Pubkey::from(name);
+            runner.add_program_with_elf_and_loader(&key, &bytes, &bpf_loader_upgradeable::id());
+            if name == "syscalls" {
+                stubs_path = Some(entry.path());
+                elf_key = Some(key);
+            } else {
+                elf_path = Some(entry.path());
+            }
+        }
 
         // Step 2: Convert program to ROM
-        let zisk_rom = rv2zk.run().unwrap_or_else(|e| panic!("Application error: {e}"));
+        let zisk_rom = ZiskRom::new(
+            elf_key.unwrap(),
+            load_elf_from_path(LoadEnv::new().unwrap(), stubs_path).unwrap(),
+            &load_elf_from_path(LoadEnv::new().unwrap(), elf_path)).unwrap();
+
         let zisk_rom = Arc::new(zisk_rom);
 
         // Step 3: Initialize the secondary state machines

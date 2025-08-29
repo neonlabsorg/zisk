@@ -11,10 +11,6 @@ categories = { workspace = true }
 name = "zisk_core"
 path = "src/lib.rs"
 
-[[bin]]
-name = "riscv2zisk"
-path = "src/bin/riscv2zisk.rs"
-
 [dependencies]
 riscv = { path = "../riscv" }
 zisk-pil = { path = "../pil" }

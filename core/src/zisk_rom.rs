@@ -65,9 +65,9 @@ const TRANSPILE_ALIGN: i32 = 16;
 #[derive(Debug, Clone, Default)]
 pub struct ZiskRom {
     pub key: Pubkey,
-    pub program: ProcessedElf,
     pub transpiled_instructions: Vec<Vec<ZiskInst>>,
-    pub system_instructions: Vec<Vec<ZiskInst>>
+    pub system_instructions: Vec<Vec<ZiskInst>>,
+    program: ProcessedElf
 }
 
 fn reg_for_bpf_reg(reg: u8) -> u64 {
@@ -82,6 +82,10 @@ type PcCallMap = BTreeMap<u64, u64>;
 
 /// ZisK ROM implementation
 impl ZiskRom {
+    pub fn ro_sections(&self) -> impl Iterator<Item = (u64, &[u8])> {
+        vec![(self.program.ro_section_vmaddr, self.program.ro_section_bytes.as_slice())].into_iter()
+    }
+
     fn transpile_op(op: &solana_sbpf::ebpf::Insn, pc: u64, translate_pc_routine: u64, version: &SBPFVersion, call_map: &PcCallMap) -> Vec<ZiskInst> {
         use solana_sbpf::ebpf::*;
         let (width, mask) = if BPF_B & op.opc != 0 {
@@ -1118,6 +1122,12 @@ impl ZiskRom {
         } else {
             panic!("ZiskRom::get_instruction() pc={pc} is out of range");
         }
+    }
+
+    pub fn pc_iter<'a>(&'a self) -> impl 'a + Iterator<Item = u64> {
+        self.system_instructions.as_slice().iter()
+            .chain(self.transpiled_instructions.as_slice().iter())
+            .flat_map(|items| items.as_slice().iter().map(|inst| inst.paddr))
     }
 
     pub fn build_constant_trace<F: PrimeField64>(&self) -> Vec<MainTraceRow<F>> {

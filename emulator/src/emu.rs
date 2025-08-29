@@ -78,8 +78,8 @@ pub struct Emu<'a> {
 ///                     Emu::run_gen_trace(&mut self, options: &EmuOptions, par_options: &ParEmuOptions,) -> Vec<EmuTrace>
 ///                         Emu::par_step_my_block(&mut self, emu_full_trace_vec: &mut EmuTrace)
 ///                             Emu::source_a_mem_reads_generate(instruction, &mut emu_full_trace_vec.mem_reads);
-impl Emu<'a> {
-    pub fn new(runner: Mollusk, chunk_size: u64, rom: &'a ZiskRom) -> Self {
+impl<'a> Emu<'a> {
+    pub fn new(rom: &'a ZiskRom, chunk_size: u64, runner: Mollusk) -> Self {
         Self {
             rom,
             runner,
@@ -108,8 +108,8 @@ impl Emu<'a> {
         let mut ctx = EmuContext::new(inputs);
 
         // Create a new read section for every RO data entry of the rom
-        for i in 0..self.rom.ro_data.len() {
-            ctx.inst_ctx.mem.add_read_section(self.rom.ro_data[i].from, &self.rom.ro_data[i].data);
+        for (addr, data) in self.rom.ro_sections() {
+            ctx.inst_ctx.mem.add_read_section(addr, data);
         }
 
         // Sort read sections by start address to improve performance when using binary search
