@@ -27,7 +27,7 @@ use fields::PrimeField64;
 use pil_std_lib::Std;
 use proofman_common::{create_pool, BufferPool, PreCalculate, ProofCtx, SetupCtx};
 use proofman_util::{timer_start_info, timer_stop_and_log_info};
-use rom_setup::gen_elf_hash;
+use rom_setup::{gen_elf_hash, gen_rom_hash};
 use sm_rom::RomSM;
 use witness::WitnessComponent;
 
@@ -98,17 +98,8 @@ pub struct ZiskExecutor<F: PrimeField64, BD: SMBundle<F>> {
     /// ZisK ROM, a binary file containing the ZisK program to be executed.
     pub zisk_rom: Arc<ZiskRom>,
 
-    /// Path to the ZisK ROM file.
-    pub rom_path: PathBuf,
-
-    /// Path to the assembly minimal trace binary file, if applicable.
-    pub asm_runner_path: Option<PathBuf>,
-
-    /// Path to the assembly ROM binary file, if applicable.
-    pub asm_rom_path: Option<PathBuf>,
-
     /// Planning information for main state machines.
-    pub min_traces: RwLock<MinimalTraces>,
+    pub min_traces: RwLock<Vec<EmuTrace>>,
 
     /// Planning information for main state machines.
     pub main_planning: RwLock<Vec<Plan>>,
@@ -156,6 +147,9 @@ pub struct ZiskExecutor<F: PrimeField64, BD: SMBundle<F>> {
     /// Map unlocked flag
     /// This is used to unlock the memory map for the ROM file.
     unlock_mapped_memory: bool,
+
+    runner: mollusk_svm::Mollusk,
+    accs: Vec<solana_account::Account>
 }
 
 impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
@@ -171,9 +165,6 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
     /// * `zisk_rom` - An `Arc`-wrapped ZisK ROM instance.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        rom_path: PathBuf,
-        asm_path: Option<PathBuf>,
-        asm_rom_path: Option<PathBuf>,
         zisk_rom: Arc<ZiskRom>,
         std: Arc<Std<F>>,
         sm_bundle: BD,
@@ -183,27 +174,12 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
         local_rank: i32,
         base_port: Option<u16>,
         unlock_mapped_memory: bool,
+        runner: mollusk_svm::Mollusk,
+        accs: Vec<solana_account::Account>
     ) -> Self {
-        #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
-        let (asm_shmem_mt, asm_shmem_mo) = (None, None);
-
-        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-        let (asm_shmem_mt, asm_shmem_mo) = if asm_path.is_some() {
-            let mt = PreloadedMT::new(local_rank, base_port, unlock_mapped_memory)
-                .expect("Failed to create PreloadedMT");
-            let mo = PreloadedMO::new(local_rank, base_port, unlock_mapped_memory)
-                .expect("Failed to create PreloadedMO");
-            (Some(mt), Some(mo))
-        } else {
-            (None, None)
-        };
-
         Self {
-            rom_path,
-            asm_runner_path: asm_path,
-            asm_rom_path,
             zisk_rom,
-            min_traces: RwLock::new(MinimalTraces::None),
+            min_traces: RwLock::new(vec![]),
             main_planning: RwLock::new(Vec::new()),
             secn_planning: RwLock::new(Vec::new()),
             main_instances: RwLock::new(HashMap::new()),
@@ -219,9 +195,8 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
             local_rank,
             base_port,
             unlock_mapped_memory,
-            asm_shmem_mt: Arc::new(Mutex::new(asm_shmem_mt)),
-            asm_shmem_mo: Arc::new(Mutex::new(asm_shmem_mo)),
-            asm_shmem_rh: Arc::new(Mutex::new(None)),
+            runner,
+            accs
         }
     }
 
@@ -241,225 +216,17 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
     ///
     /// # Returns
     /// A vector of `EmuTrace` instances representing minimal traces.
-    fn execute_with_emulator(&self, input_data_path: Option<PathBuf>) -> MinimalTraces {
+    fn execute_with_emulator(&self, input_data_path: Option<PathBuf>) -> Vec<EmuTrace> {
         let min_traces = self.run_emulator(Self::NUM_THREADS, input_data_path);
 
         // Store execute steps
-        let steps = if let MinimalTraces::EmuTrace(min_traces) = &min_traces {
-            min_traces.iter().map(|trace| trace.steps).sum::<u64>()
-        } else {
-            panic!("Expected EmuTrace, got something else");
-        };
-
+        let steps = min_traces.iter().map(|t| t.steps).sum::<u64>();
         self.execution_result.lock().unwrap().executed_steps = steps;
 
         min_traces
     }
 
-    /// Computes minimal traces by processing the ZisK ROM with given public inputs.
-    ///
-    /// # Arguments
-    /// * `input_data` - Input data for the ROM execution.
-    /// * `num_threads` - Number of threads to use for parallel execution.
-    ///
-    /// # Returns
-    /// A vector of `EmuTrace` instances representing minimal traces.
-    #[allow(clippy::type_complexity)]
-    fn execute_with_assembly(
-        &self,
-        input_data_path: Option<PathBuf>,
-    ) -> (MinimalTraces, DeviceMetricsList, NestedDeviceMetricsList, Option<JoinHandle<AsmRunnerMO>>)
-    {
-        if let Some(input_path) = input_data_path.as_ref() {
-            for service in AsmServices::SERVICES {
-                let port = if let Some(base_port) = self.base_port {
-                    AsmServices::port_for(&service, base_port, self.local_rank)
-                } else {
-                    AsmServices::default_port(&service, self.local_rank)
-                };
-
-                let shmem_input_name = AsmSharedMemory::<AsmMTHeader>::shmem_input_name(
-                    port,
-                    service,
-                    self.local_rank,
-                );
-                write_input(input_path, &shmem_input_name, self.unlock_mapped_memory);
-            }
-        }
-
-        let chunk_size = self.chunk_size;
-        let (world_rank, local_rank, base_port) =
-            (self.world_rank, self.local_rank, self.base_port);
-
-        let stats = Arc::clone(&self.stats);
-
-        // Run the assembly Memory Operations (MO) runner thread
-        let handle_mo = std::thread::spawn({
-            let asm_shmem_mo = self.asm_shmem_mo.clone();
-            move || {
-                AsmRunnerMO::run(
-                    asm_shmem_mo.lock().unwrap().as_mut().unwrap(),
-                    Self::MAX_NUM_STEPS,
-                    chunk_size,
-                    world_rank,
-                    local_rank,
-                    base_port,
-                    stats,
-                )
-                .expect("Error during Assembly Memory Operations execution")
-            }
-        });
-
-        let stats = Arc::clone(&self.stats);
-
-        // Run the assembly ROM Histogram runner with the provided input data path only if the world rank is 0
-        let handle_rh = (self.world_rank == 0).then(|| {
-            let asm_shmem_rh = self.asm_shmem_rh.clone();
-            let unlock_mapped_memory = self.unlock_mapped_memory;
-            std::thread::spawn(move || {
-                AsmRunnerRH::run(
-                    &mut asm_shmem_rh.lock().unwrap(),
-                    Self::MAX_NUM_STEPS,
-                    world_rank,
-                    local_rank,
-                    base_port,
-                    unlock_mapped_memory,
-                    stats,
-                )
-                .expect("Error during ROM Histogram execution")
-            })
-        });
-
-        let (min_traces, main_count, secn_count) = self.run_mt_assembly();
-
-        // Store execute steps
-        let steps = if let MinimalTraces::AsmEmuTrace(asm_min_traces) = &min_traces {
-            asm_min_traces.vec_chunks.iter().map(|trace| trace.steps).sum::<u64>()
-        } else {
-            panic!("Expected AsmEmuTrace, got something else");
-        };
-
-        self.execution_result.lock().unwrap().executed_steps = steps;
-
-        // If the world rank is 0, wait for the ROM Histogram thread to finish and set the handler
-        if self.world_rank == 0 {
-            self.rom_sm.as_ref().unwrap().set_asm_runner_handler(
-                handle_rh.expect("Error during Assembly ROM Histogram thread execution"),
-            );
-        }
-
-        (min_traces, main_count, secn_count, Some(handle_mo))
-    }
-
-    fn run_mt_assembly(&self) -> (MinimalTraces, DeviceMetricsList, NestedDeviceMetricsList) {
-        struct CounterTask<F, DB>
-        where
-            DB: DataBusTrait<PayloadType, Box<dyn BusDeviceMetrics>>,
-        {
-            chunk_id: ChunkId,
-            emu_trace: Arc<EmuTrace>,
-            data_bus: DB,
-            zisk_rom: Arc<ZiskRom>,
-            chunk_size: u64,
-            _phantom: std::marker::PhantomData<F>,
-            _stats: Arc<Mutex<ExecutorStats>>,
-        }
-
-        impl<F, DB> Task for CounterTask<F, DB>
-        where
-            F: PrimeField64,
-            DB: DataBusTrait<PayloadType, Box<dyn BusDeviceMetrics>> + Send + Sync + 'static,
-        {
-            type Output = (ChunkId, DB);
-
-            fn execute(mut self) -> Self::Output {
-                #[cfg(feature = "stats")]
-                let start_time = Instant::now();
-
-                ZiskEmulator::process_emu_trace::<F, _, _>(
-                    &self.zisk_rom,
-                    &self.emu_trace,
-                    &mut self.data_bus,
-                    self.chunk_size,
-                    false,
-                );
-
-                self.data_bus.on_close();
-
-                // Add to executor stats
-                #[cfg(feature = "stats")]
-                self._stats.lock().unwrap().add_stat(ExecutorStatsEnum::ChunkPlayerMT(
-                    ExecutorStatsDuration { start_time, duration: start_time.elapsed() },
-                ));
-
-                (self.chunk_id, self.data_bus)
-            }
-        }
-
-        let task_factory: TaskFactory<_> =
-            Box::new(|chunk_id: ChunkId, emu_trace: Arc<EmuTrace>| {
-                let data_bus = self.sm_bundle.build_data_bus_counters();
-                CounterTask {
-                    chunk_id,
-                    emu_trace,
-                    chunk_size: self.chunk_size,
-                    data_bus,
-                    zisk_rom: self.zisk_rom.clone(),
-                    _phantom: std::marker::PhantomData::<F>,
-                    _stats: self.stats.clone(),
-                }
-            });
-
-        let (asm_runner_mt, mut data_buses) = AsmRunnerMT::run_and_count(
-            self.asm_shmem_mt.lock().unwrap().as_mut().unwrap(),
-            Self::MAX_NUM_STEPS,
-            self.chunk_size,
-            task_factory,
-            self.world_rank,
-            self.local_rank,
-            self.base_port,
-            self.stats.clone(),
-        )
-        .expect("Error during ASM execution");
-
-        data_buses.sort_by_key(|(chunk_id, _)| chunk_id.0);
-
-        let mut main_count = Vec::with_capacity(data_buses.len());
-        let mut secn_count = Vec::with_capacity(data_buses.len());
-
-        let main_idx = self.sm_bundle.main_counter_idx();
-        for (chunk_id, data_bus) in data_buses {
-            let databus_counters = data_bus.into_devices(false);
-
-            let mut secondary = Vec::new();
-
-            for (idx, (_, counter)) in databus_counters.into_iter().enumerate() {
-                match main_idx {
-                    None => secondary.push((chunk_id, counter)),
-                    Some(i) if idx == i => {
-                        main_count.push((chunk_id, counter.unwrap_or(Box::new(DummyCounter {}))))
-                    }
-                    Some(_) => secondary.push((chunk_id, counter)),
-                }
-            }
-
-            secn_count.push(secondary);
-        }
-
-        // Group counters by chunk_id and counter type
-        let mut secn_vec_counters =
-            (0..secn_count[0].len()).map(|_| Vec::new()).collect::<Vec<_>>();
-
-        secn_count.into_iter().for_each(|counter_slice| {
-            counter_slice.into_iter().enumerate().for_each(|(i, (chunk_id, counter))| {
-                secn_vec_counters[i].push((chunk_id, counter.unwrap_or(Box::new(DummyCounter {}))));
-            });
-        });
-
-        (MinimalTraces::AsmEmuTrace(asm_runner_mt), main_count, secn_vec_counters)
-    }
-
-    fn run_emulator(&self, num_threads: usize, input_data_path: Option<PathBuf>) -> MinimalTraces {
+    fn run_emulator(&self, num_threads: usize, input_data_path: Option<PathBuf>) -> Vec<EmuTrace> {
         // Call emulate with these options
         let input_data = if input_data_path.is_some() {
             // Read inputs data from the provided inputs path
@@ -480,11 +247,12 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
             &self.zisk_rom,
             &input_data,
             &emu_options,
-            num_threads,
+            &mut self.runner,
+            &self.accs
         )
         .expect("Error during emulator execution");
 
-        MinimalTraces::EmuTrace(min_traces)
+        min_traces
     }
 
     /// Adds main state machine instances to the proof context and assigns global IDs.
@@ -975,21 +743,12 @@ impl<F: PrimeField64, BD: SMBundle<F>> WitnessComponent<F> for ZiskExecutor<F, B
         // Process the ROM to collect the Minimal Traces
         timer_start_info!(COMPUTE_MINIMAL_TRACE);
 
-        assert_eq!(self.asm_runner_path.is_some(), self.asm_rom_path.is_some());
+        let min_traces = self.execute_with_emulator(input_data_path);
 
-        let (min_traces, main_count, secn_count, handle_mo) = if self.asm_runner_path.is_some() {
-            // If we are executing in assembly mode
-            self.execute_with_assembly(input_data_path)
-        } else {
-            // Otherwise, use the emulator
-            let min_traces = self.execute_with_emulator(input_data_path);
+        timer_start_info!(COUNT);
+        let (main_count, secn_count) = self.count(&min_traces);
+        timer_stop_and_log_info!(COUNT);
 
-            timer_start_info!(COUNT);
-            let (main_count, secn_count) = self.count(&min_traces);
-            timer_stop_and_log_info!(COUNT);
-
-            (min_traces, main_count, secn_count, None)
-        };
         timer_stop_and_log_info!(COMPUTE_MINIMAL_TRACE);
 
         // Plan the main and secondary instances using the counted metrics
@@ -1017,28 +776,6 @@ impl<F: PrimeField64, BD: SMBundle<F>> WitnessComponent<F> for ZiskExecutor<F, B
         ));
         #[cfg(feature = "stats")]
         let start_time = Instant::now();
-
-        if let Some(handle_mo) = handle_mo {
-            // Wait for the memory operations thread to finish
-            let asm_runner_mo =
-                handle_mo.join().expect("Error during Assembly Memory Operations thread execution");
-
-            // Add to executor stats
-            #[cfg(feature = "stats")]
-            self.stats.lock().unwrap().add_stat(ExecutorStatsEnum::PlanGenerationMemOpWait(
-                ExecutorStatsDuration { start_time, duration: start_time.elapsed() },
-            ));
-            #[cfg(feature = "stats")]
-            let start_time = Instant::now();
-
-            secn_planning[0].extend(asm_runner_mo.plans);
-
-            // Add to executor stats
-            #[cfg(feature = "stats")]
-            self.stats.lock().unwrap().add_stat(ExecutorStatsEnum::PlanGenerationMemOp(
-                ExecutorStatsDuration { start_time, duration: start_time.elapsed() },
-            ));
-        }
 
         timer_stop_and_log_info!(PLAN);
 
@@ -1259,7 +996,7 @@ impl<F: PrimeField64, BD: SMBundle<F>> WitnessComponent<F> for ZiskExecutor<F, B
         let blowup_factor =
             1 << (setup.stark_info.stark_struct.n_bits_ext - setup.stark_info.stark_struct.n_bits);
 
-        gen_elf_hash(&self.rom_path, file_name.as_path(), blowup_factor, check)?;
+        gen_rom_hash(self.zisk_rom.as_ref(), file_name.as_path(), blowup_factor, check)?;
         Ok(())
     }
 }

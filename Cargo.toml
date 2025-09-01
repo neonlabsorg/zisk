@@ -78,6 +78,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 mpi = { version = "0.8.0" }
 
+solana-account = "2.2"
+solana-instruction = "2.2"
 solana-sdk = "2.3"
 svm-tracer = { path = "../svm-tracer/builder" }
 sbpf-elf-parser = { path = "../svm-tracer/loader" }

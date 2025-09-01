@@ -42,16 +42,19 @@
 //!       as index `(pc-ROM_ADDR)`
 //!   * If the address is < ROM_ADDR, then get it from the vector `rom_entry_instructions`, using as
 //!     index `(pc-ROM_ENTRY)/4`
-use std::{collections::{BTreeMap, HashMap}, sync::Arc};
+use std::{collections::{BTreeMap, HashMap}, default, os::unix::fs::PermissionsExt, path::PathBuf, str::FromStr, sync::Arc};
 
 use fields::PrimeField64;
+use serde::{Deserialize, Serialize};
 use solana_pubkey::Pubkey;
 use solana_sbpf::program::SBPFVersion;
 use zisk_pil::MainTraceRow;
 
 use crate::{ZiskInst, ZiskInstBuilder, ROM_ADDR, ROM_ENTRY};
 
-use sbpf_elf_parser::ProcessedElf;
+use sbpf_elf_parser::{load_elf, ProcessedElf};
+use sbpf_elf_parser::{LoadEnv, load_elf_from_path};
+use solana_sdk::{account::Account, bpf_loader_upgradeable};
 
 const TRANSLATE_REG: u64 = 2;
 const FRAME_REGS_PTR: u64 = 3;
@@ -60,6 +63,28 @@ const STORE_REG: u64 = BASE_REG + 12;
 const SCRATCH_REG: u64 = STORE_REG + 12;
 const SCRATCH_REG2: u64 = SCRATCH_REG + 1;
 const TRANSPILE_ALIGN: i32 = 16;
+
+#[derive(Clone, Serialize, Deserialize)]
+struct AccountInventoryItem {
+    pub key: Pubkey,
+    pub writable: bool,
+    pub file: String,
+    /// lamports in the account
+    pub lamports: u64,
+    /// the program that owns this account. If executable, the program that loads this account.
+    pub owner: Pubkey,
+    /// this account's data contains a loaded program (and is now read-only)
+    pub executable: bool,
+    /// the epoch at which this account will next owe rent
+    pub rent_epoch: u64,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct AccountInventory {
+    pub accounts: Vec<AccountInventoryItem>,
+    pub syscalls_stubs: String,
+    pub main_program: Pubkey
+}
 
 /// Unlike the original is sbpf's instruction translating container 
 #[derive(Debug, Clone, Default)]
@@ -990,6 +1015,35 @@ impl ZiskRom {
                 builder.i
             }
         ].into_iter()).collect()
+    }
+
+    pub fn load_from_path(path: PathBuf) -> (Self, mollusk_svm::Mollusk, Vec<Account>) {
+        let mut meta_path = path.clone();
+        meta_path.push("metadata");
+        let meta = serde_json::from_str::<AccountInventory>(std::fs::read_to_string(meta_path).unwrap().as_str()).unwrap();
+        let mut runner = mollusk_svm::Mollusk::default();
+        let mut accounts = vec![];
+        let mut rom: Option<ZiskRom> = Option::None;
+        let syscalls_stub = load_elf_from_path(LoadEnv::new().unwrap(), meta.syscalls_stubs.clone().into()).expect(format!("loading from {:?}", meta.syscalls_stubs).as_str());
+        for acc in meta.accounts.as_slice() {
+            let data = std::fs::read(acc.file.clone()).expect(format!("failed to {0}", acc.file).as_str());
+            if acc.executable {
+                runner.add_program_with_elf_and_loader(&acc.key, data.as_slice(), &bpf_loader_upgradeable::id());
+                rom = Some(Self::new(
+                    meta.main_program,
+                    load_elf(LoadEnv::new().unwrap(), data.as_slice()).expect(format!("loading from {:?}", path.as_path()).as_str()),
+                    &syscalls_stub));
+            }
+            accounts.push(Account {
+                owner: acc.owner,
+                lamports: acc.lamports,
+                executable: acc.executable,
+                rent_epoch: acc.rent_epoch,
+                data 
+            });
+        }
+
+        (rom.unwrap(), runner, accounts)
     }
  
     pub fn new(key: Pubkey, program: ProcessedElf, bios: &ProcessedElf) -> Self {

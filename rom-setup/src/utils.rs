@@ -2,11 +2,28 @@ use anyhow::{Context, Result};
 use fields::{Field, Goldilocks};
 use proofman_common::{write_custom_commit_trace, GlobalInfo, ProofType, StarkInfo};
 use sm_rom::RomSM;
+use zisk_core::ZiskRom;
 use std::fs;
 use std::path::{Path, PathBuf};
 use zisk_pil::{RomRomTrace, PILOUT_HASH};
 
 pub const DEFAULT_CACHE_PATH: &str = ".zisk/cache";
+
+pub fn gen_rom_hash(zisk_rom: &ZiskRom, rom_buffer_path: &Path, blowup_factor: u64, check: bool) -> Result<Vec<Goldilocks>, anyhow::Error> {
+    let buffer = vec![
+        Goldilocks::ZERO;
+        RomRomTrace::<Goldilocks>::NUM_ROWS * RomRomTrace::<Goldilocks>::ROW_SIZE
+    ];
+    let mut custom_rom_trace: RomRomTrace<Goldilocks> = RomRomTrace::new_from_vec(buffer);
+
+    RomSM::compute_trace_rom(zisk_rom, &mut custom_rom_trace);
+
+    let result =
+        write_custom_commit_trace(&mut custom_rom_trace, blowup_factor, rom_buffer_path, check)
+            .map_err(|e| anyhow::anyhow!("Error writing custom commit trace: {}", e))?;
+
+    Ok(result)
+}
 
 pub fn gen_elf_hash(
     rom_path: &Path,

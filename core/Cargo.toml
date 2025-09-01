@@ -30,6 +30,7 @@ lib-c = { path = "../lib-c" }
 ziskos = { path = "../ziskos/entrypoint" }
 fields = { workspace=true }
 
+solana-sdk.workspace = true
 sbpf-elf-parser.workspace=true
 svm-tracer.workspace=true
 mollusk-svm.workspace=true

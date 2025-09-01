@@ -29,6 +29,10 @@ mollusk-svm = { workspace = true }
 fields = { workspace=true }
 clap = { version = "4.5.9", features = ["derive", "env"] }
 sysinfo = { workspace = true }
+serde_json.workspace = true
+solana-instruction.workspace = true
+solana-pubkey.workspace = true
+solana-account.workspace = true
 
 [build-dependencies]
 vergen = { version = "8", default-features = false, features = [

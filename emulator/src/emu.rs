@@ -1,5 +1,7 @@
+use core::str;
 use std::mem;
 
+use solana_pubkey::Pubkey;
 use svm_tracer::InstructionTraceBuilder;
 use mollusk_svm::Mollusk;
 
@@ -27,9 +29,6 @@ pub struct Emu<'a> {
     /// ZisK rom, containing the program to execute, which is constant for this program except for
     /// the input data
     pub rom: &'a ZiskRom,
-
-    /// svm runner
-    pub runner: Mollusk,
 
     /// Context, where the state of the execution is stored and modified at every execution step
     pub ctx: EmuContext,
@@ -79,10 +78,9 @@ pub struct Emu<'a> {
 ///                         Emu::par_step_my_block(&mut self, emu_full_trace_vec: &mut EmuTrace)
 ///                             Emu::source_a_mem_reads_generate(instruction, &mut emu_full_trace_vec.mem_reads);
 impl<'a> Emu<'a> {
-    pub fn new(rom: &'a ZiskRom, chunk_size: u64, runner: Mollusk) -> Self {
+    pub fn new(rom: &'a ZiskRom, chunk_size: u64) -> Self {
         Self {
             rom,
-            runner,
             mem_helpers: MemHelpers::new(chunk_size),
             ctx: EmuContext::default(),
         }
@@ -92,8 +90,8 @@ impl<'a> Emu<'a> {
         rom: &'a ZiskRom,
         chunk_size: u64,
         trace_start: &'a EmuTraceStart,
-    ) -> Emu {
-        let mut emu = Emu::new(rom, chunk_size, rom);
+    ) -> Self {
+        let mut emu = Emu::new(rom, chunk_size);
         emu.ctx.inst_ctx.pc = trace_start.pc;
         emu.ctx.inst_ctx.sp = trace_start.sp;
         emu.ctx.inst_ctx.step = trace_start.step;
@@ -1562,7 +1560,7 @@ impl<'a> Emu<'a> {
         if options.generate_minimal_traces {
             let par_emu_options =
                 ParEmuOptions { num_steps: 1024 * 1024, num_threads: 1, thread_id: 0 };
-            let minimal_trace = self.run_gen_trace(options, &par_emu_options);
+            let minimal_trace = self.run_gen_trace(options, &par_emu_options, inputs);
 
             for (c, chunk) in minimal_trace.iter().enumerate() {
                 println!("Chunk {c}:");
@@ -1665,68 +1663,22 @@ impl<'a> Emu<'a> {
     }
 
     /// Run the whole program
-    pub fn par_run(
+    pub fn run_gen_trace(
         &mut self,
         inputs: Vec<u8>,
         options: &EmuOptions,
         par_options: &ParEmuOptions,
+        runner: &mut mollusk_svm::Mollusk,
+        accounts: &[(Pubkey, solana_account::Account)]
     ) -> Vec<EmuTrace> {
+        let instruction = serde_json::from_str::<solana_instruction::Instruction>(
+            str::from_utf8(inputs.as_slice()).expect("broken utf8 in instruction")).expect("instruction decoding failed");
+
+        let full_trace = InstructionTraceBuilder::build(runner, &instruction, accounts);
+
         // Context, where the state of the execution is stored and modified at every execution step
-        self.ctx = self.create_emu_context(inputs);
+        self.ctx = self.create_emu_context(inputs.clone());
 
-        // Init pc to the rom entry address
-        self.ctx.trace.start_state.pc = ROM_ENTRY;
-
-        // Store the stats option into the emulator context
-        self.ctx.do_stats = options.stats;
-
-        // Set emulation mode
-        self.ctx.inst_ctx.emulation_mode = EmulationMode::GenerateMemReads;
-
-        let mut emu_traces = Vec::new();
-
-        while !self.ctx.inst_ctx.end {
-            let block_idx = self.ctx.inst_ctx.step / par_options.num_steps as u64;
-            let is_my_block =
-                block_idx % par_options.num_threads as u64 == par_options.thread_id as u64;
-
-            if !is_my_block {
-                self.par_step();
-            } else {
-                // Check if is the first step of a new block
-                if self.ctx.inst_ctx.step % par_options.num_steps as u64 == 0 {
-                    emu_traces.push(EmuTrace {
-                        start_state: EmuTraceStart {
-                            pc: self.ctx.inst_ctx.pc,
-                            sp: self.ctx.inst_ctx.sp,
-                            c: self.ctx.inst_ctx.c,
-                            step: self.ctx.inst_ctx.step,
-                            regs: self.ctx.inst_ctx.regs,
-                        },
-                        last_c: 0,
-                        steps: 0,
-                        mem_reads: Vec::with_capacity(par_options.num_steps),
-                        end: false,
-                    });
-                }
-
-                self.par_step_my_block(emu_traces.last_mut().unwrap());
-
-                if self.ctx.inst_ctx.step >= options.max_steps {
-                    panic!("Emu::par_run() reached max_steps");
-                }
-            }
-        }
-
-        emu_traces
-    }
-
-    /// Run the whole program
-    pub fn run_gen_trace(
-        &mut self,
-        options: &EmuOptions,
-        par_options: &ParEmuOptions,
-    ) -> Vec<EmuTrace> {
         // Init pc to the rom entry address
         self.ctx.trace.start_state.pc = ROM_ENTRY;
 
