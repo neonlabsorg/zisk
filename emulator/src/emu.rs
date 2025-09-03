@@ -1531,18 +1531,25 @@ impl<'a> Emu<'a> {
         inputs: Vec<u8>,
         options: &EmuOptions,
         par_options: &ParEmuOptions,
-        runner: &mut mollusk_svm::Mollusk,
         accounts: &[(Pubkey, solana_account::Account)]
     ) -> Vec<EmuTrace> {
+        use solana_sdk::bpf_loader_upgradeable;
+
+        let mut runner = mollusk_svm::Mollusk::default();
+        for (key, acc) in accounts {
+            if acc.executable {
+                runner.add_program_with_elf_and_loader(key, acc.data.as_slice(), &bpf_loader_upgradeable::id());
+            }
+        }
+
         let instruction = serde_json::from_str::<solana_instruction::Instruction>(
             str::from_utf8(inputs.as_slice()).expect("broken utf8 in instruction")).expect("instruction decoding failed");
 
-        let full_trace = InstructionTraceBuilder::build(runner, &instruction, accounts).unwrap();
+        let full_trace = InstructionTraceBuilder::build(&mut runner, &instruction, accounts).unwrap();
         assert!(full_trace.frames.len() == 1);
 
         // Context, where the state of the execution is stored and modified at every execution step
-        self.ctx = self.create_emu_context();
-
+        self.ctx = EmuContext::new_empty();
         for region in full_trace.frames[0].address_space.regions.as_slice() {
             if region.writable.get() {
                 self.ctx.inst_ctx.mem.add_inited_write_section(region.vm_addr, 
@@ -1552,6 +1559,9 @@ impl<'a> Emu<'a> {
                     unsafe {slice::from_raw_parts(region.host_addr.get() as *const u8, region.len as usize)});
             }
         }
+
+        self.ctx.inst_ctx.mem.read_sections.sort_by(|a, b| a.start.cmp(&b.start));
+        self.ctx.inst_ctx.mem.write_sections.sort_by(|a, b| a.start.cmp(&b.start));
 
         // Init pc to the rom entry address
         self.ctx.trace.start_state.pc = ROM_ENTRY;
@@ -1588,7 +1598,7 @@ impl<'a> Emu<'a> {
                 let entry = &full_trace.frames[0].entries[sol_inst];
                 assert!(sol_pc == entry.pc());
                 for i in 0..entry.regs_before.len()-1 {
-                    assert!(entry.regs_before[i] == self.ctx.inst_ctx.regs[reg_for_bpf_reg(i)]);
+                    assert!(entry.regs_before[i] == self.ctx.inst_ctx.regs[reg_for_bpf_reg(i as u8) as usize]);
                 }
                 sol_inst += 1;
             }

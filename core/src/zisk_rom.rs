@@ -1017,33 +1017,31 @@ impl ZiskRom {
         ].into_iter()).collect()
     }
 
-    pub fn load_from_path(path: PathBuf) -> (Self, mollusk_svm::Mollusk, Vec<Account>) {
+    pub fn load_from_path(path: PathBuf) -> (Self, Vec<(Pubkey, Account)>) {
         let mut meta_path = path.clone();
         meta_path.push("metadata");
         let meta = serde_json::from_str::<AccountInventory>(std::fs::read_to_string(meta_path).unwrap().as_str()).unwrap();
-        let mut runner = mollusk_svm::Mollusk::default();
         let mut accounts = vec![];
         let mut rom: Option<ZiskRom> = Option::None;
         let syscalls_stub = load_elf_from_path(LoadEnv::new().unwrap(), meta.syscalls_stubs.clone().into()).expect(format!("loading from {:?}", meta.syscalls_stubs).as_str());
         for acc in meta.accounts.as_slice() {
             let data = std::fs::read(acc.file.clone()).expect(format!("failed to {0}", acc.file).as_str());
             if acc.executable {
-                runner.add_program_with_elf_and_loader(&acc.key, data.as_slice(), &bpf_loader_upgradeable::id());
                 rom = Some(Self::new(
                     meta.main_program,
                     load_elf(LoadEnv::new().unwrap(), data.as_slice()).expect(format!("loading from {:?}", path.as_path()).as_str()),
                     &syscalls_stub));
             }
-            accounts.push(Account {
+            accounts.push((acc.key, Account {
                 owner: acc.owner,
                 lamports: acc.lamports,
                 executable: acc.executable,
                 rent_epoch: acc.rent_epoch,
                 data 
-            });
+            }));
         }
 
-        (rom.unwrap(), runner, accounts)
+        (rom.unwrap(), accounts)
     }
 
     pub fn sol_pc(&self, zisk_pc: u64) -> Option<u64> {

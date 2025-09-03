@@ -543,8 +543,7 @@ impl Mem {
         //println!("Mem::write() addr={:x}={} width={} value={:x}={}", addr, addr, width, val,
         // val);
 
-        // Search for the section that contains the address using binary search (dicothomic search)
-        let section = if let Ok(section) = self.read_sections.binary_search_by(|section| {
+        let cmp = |section: &MemSection| {
             if addr < section.start {
                 std::cmp::Ordering::Greater
             } else if addr > (section.end - width) {
@@ -552,14 +551,18 @@ impl Mem {
             } else {
                 std::cmp::Ordering::Equal
             }
-        }) {
+        };
+
+        // Search for the section that contains the address using binary search (dicothomic search)
+        let section = if let Ok(section) = self.read_sections.binary_search_by(cmp) {
             &mut self.read_sections[section]
         } else {
             /*panic!(
                 "Mem::write_silent() section not found for addr={:x}={} with width: {}",
                 addr, addr, width
             );*/
-            &mut self.write_section
+            let section = self.write_sections.binary_search_by(cmp).unwrap();
+            &mut self.write_sections[section]
         };
 
         // Check that the address and width fall into this section address range
@@ -592,8 +595,7 @@ impl Mem {
         //println!("Mem::write() addr={:x}={} width={} value={:x}={}", addr, addr, width, val,
         // val);
 
-        // Search for the section that contains the address using binary search (dicothomic search)
-        let section = if let Ok(section) = self.read_sections.binary_search_by(|section| {
+        let cmp = |section: &MemSection| {
             if addr < section.start {
                 std::cmp::Ordering::Greater
             } else if addr > (section.end - width) {
@@ -601,14 +603,18 @@ impl Mem {
             } else {
                 std::cmp::Ordering::Equal
             }
-        }) {
+        };
+
+        // Search for the section that contains the address using binary search (dicothomic search)
+        let section = if let Ok(section) = self.read_sections.binary_search_by(cmp) {
             &mut self.read_sections[section]
         } else {
             /*panic!(
                 "Mem::write_silent() section not found for addr={:x}={} with width: {}",
                 addr, addr, width
             );*/
-            &mut self.write_section
+            let section = self.write_sections.binary_search_by(cmp).unwrap();
+            &mut self.write_sections[section]
         };
 
         // Check that the address and width fall into this section address range

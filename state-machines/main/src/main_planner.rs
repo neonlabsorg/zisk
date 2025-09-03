@@ -5,7 +5,6 @@
 
 use std::any::Any;
 
-use asm_runner::MinimalTraces;
 use fields::PrimeField;
 use proofman_common::PreCalculate;
 use zisk_common::{BusDeviceMetrics, CheckPoint, ChunkId, EmuTrace, InstanceType, Metrics, Plan, SegmentId};

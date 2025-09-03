@@ -19,10 +19,6 @@
 //! By structuring these phases, the `ZiskExecutor` ensures high-performance execution while
 //! maintaining clarity and modularity in the computation process.
 
-use asm_runner::{
-    write_input, AsmMTHeader, AsmRunnerMO, AsmRunnerMT, AsmRunnerRH, AsmServices, AsmSharedMemory,
-    MinimalTraces, PreloadedMO, PreloadedMT, PreloadedRH, Task, TaskFactory,
-};
 use fields::PrimeField64;
 use pil_std_lib::Std;
 use proofman_common::{create_pool, BufferPool, PreCalculate, ProofCtx, SetupCtx};
@@ -148,8 +144,7 @@ pub struct ZiskExecutor<F: PrimeField64, BD: SMBundle<F>> {
     /// This is used to unlock the memory map for the ROM file.
     unlock_mapped_memory: bool,
 
-    runner: mollusk_svm::Mollusk,
-    accs: Vec<solana_account::Account>
+    accs: Vec<(solana_pubkey::Pubkey, solana_account::Account)>
 }
 
 impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
@@ -174,8 +169,7 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
         local_rank: i32,
         base_port: Option<u16>,
         unlock_mapped_memory: bool,
-        runner: mollusk_svm::Mollusk,
-        accs: Vec<solana_account::Account>
+        accs: Vec<(solana_pubkey::Pubkey, solana_account::Account)>
     ) -> Self {
         Self {
             zisk_rom,
@@ -195,7 +189,6 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
             local_rank,
             base_port,
             unlock_mapped_memory,
-            runner,
             accs
         }
     }
@@ -247,8 +240,7 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
             &self.zisk_rom,
             &input_data,
             &emu_options,
-            &mut self.runner,
-            &self.accs
+            self.accs.as_slice()
         )
         .expect("Error during emulator execution");
 
@@ -309,13 +301,7 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
     /// * A vector of secondary state machine metrics grouped by chunk ID. The vector is nested,
     ///   with the outer vector representing the secondary state machines and the inner vector
     ///   containing the metrics for each chunk.
-    fn count(&self, min_traces: &MinimalTraces) -> (DeviceMetricsList, NestedDeviceMetricsList) {
-        let min_traces = match min_traces {
-            MinimalTraces::EmuTrace(min_traces) => min_traces,
-            MinimalTraces::AsmEmuTrace(asm_min_traces) => &asm_min_traces.vec_chunks,
-            _ => unreachable!(),
-        };
-
+    fn count(&self, min_traces: &[EmuTrace]) -> (DeviceMetricsList, NestedDeviceMetricsList) {
         let (main_metrics_slices, secn_metrics_slices): (Vec<_>, Vec<_>) = min_traces
             .par_iter()
             .map(|minimal_trace| {
@@ -543,14 +529,8 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
 
         let min_traces = self.min_traces.read().unwrap();
 
-        let min_traces = match &*min_traces {
-            MinimalTraces::EmuTrace(min_traces) => min_traces,
-            MinimalTraces::AsmEmuTrace(asm_min_traces) => &asm_min_traces.vec_chunks,
-            _ => unreachable!(),
-        };
-
         // Group the instances by the chunk they need to process
-        let chunks_to_execute = self.chunks_to_execute(min_traces, &secn_instances);
+        let chunks_to_execute = self.chunks_to_execute(&min_traces, &secn_instances);
 
         // Create data buses for each chunk
         let mut data_buses =
@@ -561,7 +541,7 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
             if let Some(data_bus) = data_bus {
                 ZiskEmulator::process_emu_traces::<F, _, _>(
                     &self.zisk_rom,
-                    min_traces,
+                    &min_traces,
                     chunk_id,
                     data_bus,
                     self.chunk_size,
@@ -710,7 +690,7 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
     fn reset(&self) {
         // Reset the internal state of the executor
         *self.execution_result.lock().unwrap() = ZiskExecutionResult::default();
-        *self.min_traces.write().unwrap() = MinimalTraces::None;
+        *self.min_traces.write().unwrap() = vec![];
         *self.main_planning.write().unwrap() = Vec::new();
         *self.secn_planning.write().unwrap() = Vec::new();
         self.main_instances.write().unwrap().clear();

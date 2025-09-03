@@ -49,7 +49,6 @@ impl ZiskEmulator {
         rom: &ZiskRom,
         inputs: &[u8],
         options: &EmuOptions,
-        runner: &mut mollusk_svm::Mollusk,
         accounts: &[(solana_pubkey::Pubkey, solana_account::Account)]
     ) -> Result<Vec<EmuTrace>, ZiskEmulatorErr> {
         let par_emu_options =
@@ -57,7 +56,7 @@ impl ZiskEmulator {
 
         // Run the emulation
         let mut emu = Emu::new(rom, options.chunk_size.unwrap());
-        let result = emu.run_gen_trace(inputs.to_owned(), options, &par_emu_options, runner, accounts);
+        let result = emu.run_gen_trace(inputs.to_owned(), options, &par_emu_options, accounts);
 
         if !emu.terminated() {
             panic!("Emulation did not complete");

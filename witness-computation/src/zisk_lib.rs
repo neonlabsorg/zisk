@@ -84,7 +84,7 @@ impl<F: PrimeField64> WitnessLibrary<F> for WitnessLib<F> {
     /// # Panics
     /// Panics if the `Riscv2zisk` conversion fails or if required paths cannot be resolved.
     fn register_witness(&mut self, wcm: Arc<WitnessManager<F>>) {
-        let (zisk_rom, runner, accounts) = ZiskRom::load_from_path(self.elf_path);
+        let (zisk_rom, accounts) = ZiskRom::load_from_path(self.elf_path);
         let zisk_rom = Arc::new(zisk_rom);
 
         // Step 3: Initialize the secondary state machines
@@ -134,7 +134,6 @@ impl<F: PrimeField64> WitnessLibrary<F> for WitnessLib<F> {
             self.local_rank,
             self.base_port,
             self.unlock_mapped_memory,
-            runner,
             accounts
         );
 

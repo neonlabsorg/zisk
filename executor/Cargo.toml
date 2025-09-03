@@ -32,6 +32,7 @@ sbpf-elf-parser.workspace = true
 svm-tracer.workspace = true
 mollusk-svm.workspace = true
 solana-account.workspace = true
+solana-pubkey.workspace = true
 
 [features]
 default = []
