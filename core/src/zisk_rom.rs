@@ -95,7 +95,7 @@ pub struct ZiskRom {
     program: ProcessedElf
 }
 
-fn reg_for_bpf_reg(reg: u8) -> u64 {
+pub fn reg_for_bpf_reg(reg: u8) -> u64 {
     BASE_REG + reg as u64
 }
 
@@ -1044,6 +1044,22 @@ impl ZiskRom {
         }
 
         (rom.unwrap(), runner, accounts)
+    }
+
+    pub fn sol_pc(&self, zisk_pc: u64) -> Option<u64> {
+        if zisk_pc >= ROM_ADDR {
+            let align = TRANSPILE_ALIGN as u64;
+            let line = (zisk_pc - ROM_ADDR) / align;
+            let index = (zisk_pc - ROM_ADDR) % align;
+
+            if index == 0 {
+                Some(line)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
  
     pub fn new(key: Pubkey, program: ProcessedElf, bios: &ProcessedElf) -> Self {

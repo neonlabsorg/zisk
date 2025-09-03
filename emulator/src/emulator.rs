@@ -38,8 +38,6 @@ pub trait Emulator {
         callback: Option<impl Fn(EmuTrace)>,
     ) -> Result<Vec<u8>, ZiskEmulatorErr>;
 }
-use rayon::prelude::*;
-
 pub struct ZiskEmulator;
 
 impl ZiskEmulator {
