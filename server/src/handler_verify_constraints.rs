@@ -106,7 +106,7 @@ impl ZiskServiceVerifyConstraintsHandler {
                     result: ZiskCmdResult::InProgress,
                     code: ZiskResultCode::Ok,
                     msg: None,
-                    node: config.asm_runner_options.world_rank,
+                    node: config.world_rank,
                 },
                 server_id: config.server_id.to_string(),
                 elf_file: config.elf.display().to_string(),

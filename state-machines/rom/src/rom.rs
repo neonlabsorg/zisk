@@ -50,10 +50,8 @@ impl RomSM {
     ///
     /// # Returns
     /// An `Arc`-wrapped instance of `RomSM`.
-    pub fn new(zisk_rom: Arc<ZiskRom>, asm_rom_path: Option<PathBuf>) -> Arc<Self> {
-        let (bios_inst_count, prog_inst_count) = if asm_rom_path.is_some() {
-            (vec![], vec![])
-        } else {
+    pub fn new(zisk_rom: Arc<ZiskRom>) -> Arc<Self> {
+        let (bios_inst_count, prog_inst_count) = {
             (
                 create_atomic_vec(((ROM_ADDR - ROM_ENTRY) as usize) >> 2), // No atomics, we can divide by 4
                 create_atomic_vec((ROM_ADDR_MAX - ROM_ADDR) as usize), // Cannot be dividede by 4

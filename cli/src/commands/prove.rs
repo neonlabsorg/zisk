@@ -6,7 +6,6 @@ use crate::{
     ZISK_VERSION_MESSAGE,
 };
 use anyhow::Result;
-use asm_runner::{AsmRunnerOptions, AsmServices};
 use bytemuck::cast_slice;
 use colored::Colorize;
 use executor::ZiskExecutionResult;
@@ -276,8 +275,6 @@ impl ZiskProve {
         let mut witness_lib = witness_lib_constructor(
             self.verbose.into(),
             self.elf.clone(),
-            self.asm.clone(),
-            asm_rom,
             self.chunk_size_bits,
             Some(mpi_context.world_rank),
             Some(mpi_context.local_rank),

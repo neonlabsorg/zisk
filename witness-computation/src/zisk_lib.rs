@@ -28,8 +28,6 @@ const DEFAULT_CHUNK_SIZE_BITS: u64 = 18;
 
 pub struct WitnessLib<F: PrimeField64> {
     elf_path: PathBuf,
-    asm_path: Option<PathBuf>,
-    asm_rom_path: Option<PathBuf>,
     executor: Option<Arc<ZiskExecutor<F, StaticSMBundle<F>>>>,
     chunk_size: u64,
     world_rank: i32,
@@ -43,8 +41,6 @@ pub struct WitnessLib<F: PrimeField64> {
 fn init_library(
     verbose_mode: proofman_common::VerboseMode,
     elf_path: PathBuf,
-    asm_path: Option<PathBuf>,
-    asm_rom_path: Option<PathBuf>,
     chunk_size_bits: Option<u64>,
     world_rank: Option<i32>,
     local_rank: Option<i32>,
@@ -56,8 +52,6 @@ fn init_library(
 
     let result = Box::new(WitnessLib {
         elf_path,
-        asm_path,
-        asm_rom_path,
         executor: None,
         chunk_size,
         world_rank: world_rank.unwrap_or(0),
@@ -91,7 +85,7 @@ impl<F: PrimeField64> WitnessLibrary<F> for WitnessLib<F> {
         let std = Std::new(wcm.get_pctx(), wcm.get_sctx());
         register_std(&wcm, &std);
 
-        let rom_sm = RomSM::new(zisk_rom.clone(), self.asm_rom_path.clone());
+        let rom_sm = RomSM::new(zisk_rom.clone());
         let binary_sm = BinarySM::new(std.clone());
         let arith_sm = ArithSM::new();
         let mem_sm = Mem::new(std.clone());
@@ -112,7 +106,7 @@ impl<F: PrimeField64> WitnessLibrary<F> for WitnessLib<F> {
         // ]);
 
         let sm_bundle = StaticSMBundle::new(
-            self.asm_path.is_some(),
+            false,
             mem_sm.clone(),
             rom_sm.clone(),
             binary_sm.clone(),

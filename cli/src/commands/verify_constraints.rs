@@ -7,7 +7,6 @@ use crate::{
     ZISK_VERSION_MESSAGE,
 };
 use anyhow::Result;
-use asm_runner::{AsmRunnerOptions, AsmServices};
 use clap::Parser;
 use colored::Colorize;
 use executor::ZiskExecutionResult;
@@ -202,23 +201,7 @@ impl ZiskVerifyConstraints {
         }
         let mut witness_lib;
 
-        let asm_services =
-            AsmServices::new(mpi_context.world_rank, mpi_context.local_rank, self.port);
-        let asm_runner_options = AsmRunnerOptions::new()
-            .with_verbose(self.verbose > 0)
-            .with_base_port(self.port)
-            .with_world_rank(mpi_context.world_rank)
-            .with_local_rank(mpi_context.local_rank)
-            .with_unlock_mapped_memory(self.unlock_mapped_memory);
-
         let start = std::time::Instant::now();
-
-        if self.asm.is_some() {
-            // Start ASM microservices
-            tracing::info!(">>> [{}] Starting ASM microservices.", mpi_context.world_rank,);
-
-            asm_services.start_asm_services(self.asm.as_ref().unwrap(), asm_runner_options)?;
-        }
 
         match self.field {
             Field::Goldilocks => {
@@ -230,8 +213,6 @@ impl ZiskVerifyConstraints {
                 witness_lib = witness_lib_constructor(
                     self.verbose.into(),
                     self.elf.clone(),
-                    self.asm.clone(),
-                    asm_rom,
                     None,
                     Some(mpi_context.world_rank),
                     Some(mpi_context.local_rank),
@@ -267,12 +248,6 @@ impl ZiskVerifyConstraints {
             elapsed.as_secs_f32(),
             result.executed_steps
         );
-
-        if self.asm.is_some() {
-            // Shut down ASM microservices
-            tracing::info!("<<< [{}] Shutting down ASM microservices.", mpi_context.world_rank);
-            asm_services.stop_asm_services()?;
-        }
 
         // Store the stats in stats.json
         #[cfg(feature = "stats")]

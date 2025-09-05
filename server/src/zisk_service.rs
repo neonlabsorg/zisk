@@ -8,7 +8,6 @@ use std::{
     time::Instant,
 };
 
-use asm_runner::{AsmRunnerOptions, AsmServices};
 use fields::Goldilocks;
 use libloading::{Library, Symbol};
 use proofman::ProofMan;
@@ -42,12 +41,6 @@ pub struct ServerConfig {
     /// Path to the witness computation dynamic library
     pub witness_lib: PathBuf,
 
-    /// Path to the ASM file (optional)
-    pub asm: Option<PathBuf>,
-
-    /// Path to the ASM ROM file (optional)
-    pub asm_rom: Option<PathBuf>,
-
     /// Map of custom commits
     pub custom_commits_map: HashMap<String, PathBuf>,
 
@@ -72,14 +65,16 @@ pub struct ServerConfig {
     /// Size of the chunks in bits
     pub chunk_size_bits: Option<u64>,
 
-    /// Additional options for the ASM runner
-    pub asm_runner_options: AsmRunnerOptions,
-
     pub verify_constraints: bool,
     pub aggregation: bool,
     pub final_snark: bool,
 
     pub gpu_params: ParamsGPU,
+
+    pub base_port: u16,
+    pub unlock_mapped_memory: bool,
+    pub world_rank: i32,
+    pub local_rank: i32
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -88,26 +83,25 @@ impl ServerConfig {
         port: u16,
         elf: PathBuf,
         witness_lib: PathBuf,
-        asm: Option<PathBuf>,
-        asm_rom: Option<PathBuf>,
         custom_commits_map: HashMap<String, PathBuf>,
         emulator: bool,
         proving_key: PathBuf,
         verbose: u8,
         debug: DebugInfo,
         chunk_size_bits: Option<u64>,
-        asm_runner_options: AsmRunnerOptions,
         verify_constraints: bool,
         aggregation: bool,
         final_snark: bool,
         gpu_params: ParamsGPU,
+        base_port: u16,
+        unlock_mapped_memory: bool,
+        world_rank: i32,
+        local_rank: i32
     ) -> Self {
         Self {
             port,
             elf,
             witness_lib,
-            asm,
-            asm_rom,
             custom_commits_map,
             emulator,
             proving_key,
@@ -116,11 +110,14 @@ impl ServerConfig {
             launch_time: Instant::now(),
             server_id: Uuid::new_v4(),
             chunk_size_bits,
-            asm_runner_options,
             verify_constraints,
             aggregation,
             final_snark,
             gpu_params,
+            base_port,
+            unlock_mapped_memory,
+            world_rank,
+            local_rank
         }
     }
 }
@@ -237,30 +234,16 @@ pub struct ZiskService {
     // to ensure that the witness library is dropped before the proofman.
     witness_lib: Arc<dyn WitnessLibrary<Goldilocks> + Send + Sync>,
     proofman: Arc<ProofMan<Goldilocks>>,
-    asm_services: Option<AsmServices>,
     is_busy: Arc<AtomicBool>,
     pending_handles: Vec<std::thread::JoinHandle<()>>,
+
+    world_rank: i32,
+    local_rank: i32
 }
 
 impl ZiskService {
     pub fn new(config: ServerConfig, mpi_context: MpiContext) -> Result<Self> {
         info_file!("Starting asm microservices...");
-
-        let world_rank = config.asm_runner_options.world_rank;
-        let local_rank = config.asm_runner_options.local_rank;
-        let base_port = config.asm_runner_options.base_port;
-        let unlock_mapped_memory = config.asm_runner_options.unlock_mapped_memory;
-
-        let asm_services = if config.emulator {
-            None
-        } else {
-            let asm_services = AsmServices::new(world_rank, local_rank, base_port);
-            asm_services.start_asm_services(
-                config.asm.as_ref().unwrap(),
-                config.asm_runner_options.clone(),
-            )?;
-            Some(asm_services)
-        };
 
         let library =
             unsafe { Library::new(config.witness_lib.clone()).expect("Failed to load library") };
@@ -270,13 +253,11 @@ impl ZiskService {
         let mut witness_lib = witness_lib_constructor(
             config.verbose.into(),
             config.elf.clone(),
-            config.asm.clone(),
-            config.asm_rom.clone(),
             config.chunk_size_bits,
-            Some(world_rank),
-            Some(local_rank),
-            base_port,
-            unlock_mapped_memory,
+            Some(mpi_context.world_rank),
+            Some(mpi_context.local_rank),
+            Some(config.base_port),
+            config.unlock_mapped_memory,
         )
         .expect("Failed to initialize witness library");
 
@@ -319,9 +300,10 @@ impl ZiskService {
             config: Arc::new(config),
             proofman: Arc::new(proofman),
             witness_lib,
-            asm_services,
             is_busy: Arc::new(AtomicBool::new(false)),
             pending_handles: Vec::new(),
+            world_rank: mpi_context.world_rank,
+            local_rank: mpi_context.local_rank
         })
     }
 
@@ -375,7 +357,7 @@ impl ZiskService {
                         result: ZiskCmdResult::Error,
                         code: ZiskResultCode::InvalidRequest,
                         msg: Some(format!("Invalid request format or data. {e}")),
-                        node: config.asm_runner_options.world_rank,
+                        node: self.world_rank,
                     },
                 };
                 Self::send_json(&mut stream, &response)?;
@@ -395,7 +377,7 @@ impl ZiskService {
                 result: ZiskCmdResult::InProgress,
                 code: ZiskResultCode::Busy,
                 msg: Some("Server is busy, please try again later.".to_string()),
-                node: config.asm_runner_options.world_rank,
+                node: self.world_rank,
             });
             Self::send_json(&mut stream, &response)?;
             return Ok(false);
@@ -415,7 +397,7 @@ impl ZiskService {
             }
             ZiskRequest::Shutdown { payload } => {
                 must_shutdown = true;
-                ZiskServiceShutdownHandler::handle(&config, payload, self.asm_services.as_ref())
+                ZiskServiceShutdownHandler::handle(&config, payload)
             }
             ZiskRequest::VerifyConstraints { payload } => {
                 ZiskServiceVerifyConstraintsHandler::handle(

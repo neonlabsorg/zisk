@@ -1,5 +1,4 @@
 use anyhow::Result;
-use asm_runner::AsmRunnerOptions;
 use clap::Parser;
 use colored::Colorize;
 use proofman_common::{json_to_debug_instances_map, DebugInfo, ParamsGPU};
@@ -63,15 +62,6 @@ pub struct ZiskServer {
 
     #[clap(long, default_value_t = Field::Goldilocks)]
     pub field: Field,
-
-    /// Base port for Assembly microservices (default: 23115).
-    /// A single execution will use 3 consecutive ports, from this port to port + 2.
-    /// If you are running multiple instances of ZisK using mpi on the same machine,
-    /// it will use from this base port to base port + 2 * number_of_instances.
-    /// For example, if you run 2 mpi instances of ZisK, it will use ports from 23115 to 23117
-    /// for the first instance, and from 23118 to 23120 for the second instance.
-    #[clap(long, conflicts_with = "emulator")]
-    pub asm_port: Option<u16>,
 
     /// Map unlocked flag
     /// This is used to unlock the memory map for the ROM file.
@@ -154,28 +144,11 @@ impl ZiskServer {
 
         let emulator = if cfg!(target_os = "macos") { true } else { self.emulator };
 
-        let mut asm_rom = None;
-        if emulator {
-            self.asm = None;
-        } else if self.asm.is_none() {
-            let stem = self.elf.file_stem().unwrap().to_str().unwrap();
-            let hash = get_elf_data_hash(&self.elf)
-                .map_err(|e| anyhow::anyhow!("Error computing ELF hash: {}", e))?;
-            let new_filename = format!("{stem}-{hash}-mt.bin");
-            let asm_rom_filename = format!("{stem}-{hash}-rh.bin");
-            asm_rom = Some(default_cache_path.join(asm_rom_filename));
-            self.asm = Some(default_cache_path.join(new_filename));
-        }
+        self.asm = None;
 
         if let Some(asm_path) = &self.asm {
             if !asm_path.exists() {
                 return Err(anyhow::anyhow!("ASM file not found at {:?}", asm_path.display()));
-            }
-        }
-
-        if let Some(asm_rom) = &asm_rom {
-            if !asm_rom.exists() {
-                return Err(anyhow::anyhow!("ASM file not found at {:?}", asm_rom.display()));
             }
         }
 
@@ -193,13 +166,6 @@ impl ZiskServer {
         let mut custom_commits_map: HashMap<String, PathBuf> = HashMap::new();
         custom_commits_map.insert("rom".to_string(), rom_bin_path);
 
-        let asm_runner_options = AsmRunnerOptions::new()
-            .with_verbose(self.verbose > 0)
-            .with_base_port(self.asm_port)
-            .with_world_rank(mpi_context.world_rank)
-            .with_local_rank(mpi_context.local_rank)
-            .with_unlock_mapped_memory(self.unlock_mapped_memory);
-
         let mut gpu_params = ParamsGPU::new(self.preallocate);
 
         if self.max_streams.is_some() {
@@ -216,19 +182,20 @@ impl ZiskServer {
             self.port,
             self.elf.clone(),
             get_witness_computation_lib(self.witness_lib.as_ref()),
-            self.asm.clone(),
-            asm_rom,
             custom_commits_map,
             emulator,
             proving_key,
             self.verbose,
             debug_info,
             self.chunk_size_bits,
-            asm_runner_options,
             self.verify_constraints,
             self.aggregation,
             self.final_snark,
             gpu_params,
+            self.port + 1,
+            false,
+            mpi_context.world_rank,
+            mpi_context.local_rank
         );
 
         if let Err(e) = ZiskService::new(config, mpi_context)?.run() {
@@ -254,17 +221,6 @@ impl ZiskServer {
         );
 
         println!("{: >12} {}", "Elf".bright_green().bold(), self.elf.display());
-
-        if self.asm.is_some() {
-            let asm_path = self.asm.as_ref().unwrap().display();
-            println!("{: >12} {}", "ASM runner".bright_green().bold(), asm_path);
-        } else {
-            println!(
-                "{: >12} {}",
-                "Emulator".bright_green().bold(),
-                "Running in emulator mode".bright_yellow()
-            );
-        }
 
         println!(
             "{: >12} {}",

@@ -11,10 +11,6 @@ categories = { workspace = true }
 name = "ziskemu"
 path = "src/lib.rs"
 
-[[bin]]
-name = "ziskemu"
-path = "src/bin/ziskemu.rs"
-
 [dependencies]
 zisk-common = { path = "../common" }
 zisk-core = { path = "../core" }
