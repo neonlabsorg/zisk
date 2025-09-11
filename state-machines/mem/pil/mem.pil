@@ -70,7 +70,8 @@ const int MAX_RANGE_CHECK_CHUNK = 2**16;
 
 airtemplate Mem(const int N = 2**21, const int id = MEMORY_ID, const int RC = 2, const int bytes = 8,
                 const int base_address = 0, const int size_mb = 128, int immutable = 0,
-                const int free_input_mem = 0, const expr enable_flag = 1, const int use_predefined_ranges = 0, const int large_mem = 0) {
+                const int free_input_mem = 0, const expr enable_flag = 1, const int use_predefined_ranges = 0, const int large_mem = 0,
+                const int is_rw_input = 0) {
 
     col fixed SEGMENT_L1 = [1,0...];
     const expr SEGMENT_LAST = SEGMENT_L1';
@@ -344,6 +345,10 @@ airtemplate Mem(const int N = 2**21, const int id = MEMORY_ID, const int RC = 2,
 
     // if addr_changes == 0 means that addr and previous address are the same
 
+    if (is_rw_input) {
+        col witness init_val[RC];
+    }
+
     for (int index = 0; index < length(value); index++) {
         const expr previous_value = SEGMENT_L1 * (previous_segment_value[index] - 'value[index]) + 'value[index];
         if (free_input_mem) {
@@ -359,8 +364,13 @@ airtemplate Mem(const int N = 2**21, const int id = MEMORY_ID, const int RC = 2,
             // if address not change and it isn't write, value must be equal to previous value
             read_same_addr * (value[index] - previous_value)  ===  0;
 
-            // if address changes, and it isn't a write, value must be 0.
-            addr_changes * (1 - wr) * value[index]  ===  0;
+            if (is_rw_input) {
+
+                addr_changes * (1 - wr) * (value[index] - init_val[index]) === 0;
+            } else {
+                // if address changes, and it isn't a write, value must be 0.
+                addr_changes * (1 - wr) * value[index]  ===  0;
+            }
         }
     }
 
