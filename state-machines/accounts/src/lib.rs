@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::{atomic::AtomicBool, Arc}};
+use std::{collections::BTreeMap, sync::{atomic::{AtomicBool, AtomicU32, AtomicU64}, Arc}};
 
 use sbpf_parser::mem::TxInput;
 use solana_sdk::{account::Account, instruction::{Instruction, InstructionError}};
@@ -19,21 +19,27 @@ use zisk_common::{
 
 pub struct AccountsSM {
     initial_state: TxInput,
-    stats: Arc<BTreeMap<u64, u64>>
+    stats: Arc<BTreeMap<u64, AtomicU32>>
 }
 
 impl AccountsSM {
     pub fn new(instruction: Instruction, accs: Vec<(Pubkey, Account)>) -> Result<Self, InstructionError> {
+        let mut stats = BTreeMap::<u64, AtomicU32>::new();
+        let input = TxInput::new_with_defaults(&instruction, accs.as_slice())?;
+        for addr in input.iter() {
+            stats.insert(addr, 0.into());
+        }
+
         Ok(Self {
-            initial_state: TxInput::new_with_defaults(&instruction, accs.as_slice())?.into(),
-            stats: BTreeMap::new().into()
+            initial_state: input.into(),
+            stats: stats.into()
         })
     }
 }
 
 impl<F: PrimeField64> ComponentBuilder<F> for AccountsSM {
     fn build_instance(&self, ictx: InstanceCtx) -> Box<dyn Instance<F>> {
-        Box::new(AccountsInstance { ictx, calculated: false.into() })
+        Box::new(AccountsInstance { ictx, calculated: false.into(), stats: self.stats.clone() })
     }
 
     fn build_planner(&self) -> Box<dyn Planner> {
@@ -49,6 +55,7 @@ pub struct AccountsInstance {
     /// The instance context.
     ictx: InstanceCtx,
 
+    stats: Arc<BTreeMap<u64, AtomicU32>>,
     calculated: AtomicBool,
 }
 
@@ -80,7 +87,7 @@ impl<F: PrimeField64> Instance<F> for AccountsInstance {
             _chunk_id: ChunkId,
         ) -> Option<Box<dyn zisk_common::BusDevice<zisk_common::PayloadType>>> 
     {
-        Some(Box::new(AccountsCounter{stats: self.stats.clone(), ACCOUNTS_AIR_IDS }))
+        Some(Box::new(AccountsCounter{stats: self.stats.clone(), bus_id: BusId{ 0: ACCOUNTS_AIR_IDS[0] } }))
     }
 }
 
@@ -88,7 +95,7 @@ pub struct AccountsCollector {
 }
 
 pub struct AccountsCounter {
-    stats: Arc<BTreeMap<u64, u64>>,
+    stats: Arc<BTreeMap<u64, AtomicU32>>,
     bus_id: BusId
 }
 
@@ -101,7 +108,14 @@ impl BusDevice<u64> for AccountsCounter {
         self
     }
 
-
+    fn process_data(
+            &mut self,
+            bus_id: &BusId,
+            data: &[u64],
+            pending: &mut std::collections::VecDeque<(BusId, Vec<u64>)>,
+        ) -> bool
+    {
+    }
 }
 
 pub struct AccountsPlanner;
