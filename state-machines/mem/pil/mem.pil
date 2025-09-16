@@ -71,7 +71,8 @@ const int MAX_RANGE_CHECK_CHUNK = 2**16;
 airtemplate Mem(const int N = 2**21, const int id = MEMORY_ID, const int RC = 2, const int bytes = 8,
                 const int base_address = 0, const int size_mb = 128, int immutable = 0,
                 const int free_input_mem = 0, const expr enable_flag = 1, const int use_predefined_ranges = 0, const int large_mem = 0,
-                const int is_rw_input = 0) {
+                const int is_rw_input = 0,
+                const int rw_input_init_bus = ACCOUNTS_BUS_ID) {
 
     col fixed SEGMENT_L1 = [1,0...];
     const expr SEGMENT_LAST = SEGMENT_L1';
@@ -346,7 +347,8 @@ airtemplate Mem(const int N = 2**21, const int id = MEMORY_ID, const int RC = 2,
     // if addr_changes == 0 means that addr and previous address are the same
 
     if (is_rw_input) {
-        col witness init_val[RC];
+        col witness air.init_val[RC];
+        lookup_assumes(rw_input_init_bus, [addr, ...init_val])
     }
 
     for (int index = 0; index < length(value); index++) {
