@@ -22,7 +22,6 @@ use std::{any::Any, path::PathBuf, sync::Arc};
 use witness::{WitnessLibrary, WitnessManager};
 use mollusk_svm::Mollusk;
 use solana_sdk::bpf_loader_upgradeable;
-use sbpf_elf_parser::{LoadEnv, load_elf_from_path};
 
 const DEFAULT_CHUNK_SIZE_BITS: u64 = 18;
 

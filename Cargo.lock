@@ -3,6 +3,21 @@
 version = 4
 
 [[package]]
+name = "accounts"
+version = "0.10.0"
+dependencies = [
+ "fields",
+ "proofman-common",
+ "sbpf-parser",
+ "solana-account",
+ "solana-pubkey",
+ "solana-sdk",
+ "zisk-common",
+ "zisk-core",
+ "zisk-pil",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1594,7 +1609,7 @@ dependencies = [
  "proofman-util",
  "rayon",
  "rom-setup",
- "sbpf-elf-parser",
+ "sbpf-parser",
  "sm-main",
  "sm-rom",
  "solana-account",
@@ -4072,14 +4087,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "sbpf-elf-parser"
+name = "sbpf-parser"
 version = "0.1.0"
 dependencies = [
  "agave-feature-set",
+ "mollusk-svm",
+ "solana-account",
  "solana-bpf-loader-program",
  "solana-compute-budget",
+ "solana-instruction",
  "solana-program-runtime",
+ "solana-pubkey",
+ "solana-rent",
  "solana-sbpf",
+ "solana-sdk",
+ "solana-transaction-context",
 ]
 
 [[package]]
@@ -7438,7 +7460,7 @@ dependencies = [
  "precompiles-helpers",
  "rayon",
  "riscv",
- "sbpf-elf-parser",
+ "sbpf-parser",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -7482,7 +7504,7 @@ dependencies = [
  "proofman-macros",
  "proofman-util",
  "rayon",
- "sbpf-elf-parser",
+ "sbpf-parser",
  "sm-arith",
  "sm-binary",
  "sm-main",

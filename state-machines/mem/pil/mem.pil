@@ -348,7 +348,7 @@ airtemplate Mem(const int N = 2**21, const int id = MEMORY_ID, const int RC = 2,
 
     if (is_rw_input) {
         col witness air.init_val[RC];
-        lookup_assumes(rw_input_init_bus, [addr, ...init_val])
+        lookup_assumes(rw_input_init_bus, [addr*bytes, ...init_val])
     }
 
     for (int index = 0; index < length(value); index++) {

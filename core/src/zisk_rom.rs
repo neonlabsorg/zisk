@@ -52,8 +52,8 @@ use zisk_pil::MainTraceRow;
 
 use crate::{ZiskInst, ZiskInstBuilder, ROM_ADDR, ROM_ENTRY};
 
-use sbpf_elf_parser::{load_elf, ProcessedElf};
-use sbpf_elf_parser::{LoadEnv, load_elf_from_path};
+use sbpf_parser::elf::{load_elf, ProcessedElf};
+use sbpf_parser::elf::{LoadEnv, load_elf_from_path};
 use solana_sdk::{account::Account, bpf_loader_upgradeable};
 
 const TRANSLATE_REG: u64 = 2;

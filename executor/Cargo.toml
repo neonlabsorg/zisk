@@ -28,7 +28,7 @@ itertools = { workspace = true }
 rayon = { workspace = true }
 pil-std-lib = { workspace = true }
 
-sbpf-elf-parser.workspace = true
+sbpf-parser.workspace = true
 svm-tracer.workspace = true
 mollusk-svm.workspace = true
 solana-account.workspace = true

@@ -31,7 +31,7 @@ members = [
     "ziskclib",
     "common",
     "tools/circuit",
-    "server",
+    "server", "state-machines/accounts",
 ]
 
 resolver = "2"
@@ -82,7 +82,7 @@ solana-account = "2.2"
 solana-instruction = "2.2"
 solana-sdk = "2.3"
 svm-tracer = { path = "../svm-tracer/builder" }
-sbpf-elf-parser = { path = "../svm-tracer/loader" }
+sbpf-parser = { path = "../svm-tracer/loader" }
 mollusk-svm = { version = "0.4.0", features = ["invocation-inspect-callback"] }
 solana-program-runtime = "2.3"
 solana-sbpf = "0.11.1"

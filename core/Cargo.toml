@@ -31,7 +31,7 @@ ziskos = { path = "../ziskos/entrypoint" }
 fields = { workspace=true }
 
 solana-sdk.workspace = true
-sbpf-elf-parser.workspace=true
+sbpf-parser.workspace=true
 svm-tracer.workspace=true
 mollusk-svm.workspace=true
 solana-program-runtime.workspace=true
