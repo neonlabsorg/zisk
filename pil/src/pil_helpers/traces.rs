@@ -16,7 +16,7 @@ use rayon::prelude::*;
 #[allow(dead_code)]
 type FieldExtension<F> = [F; 3];
 
-pub const PILOUT_HASH: &str = "1574ec017e8143e9e46a2788703bab842da8207187064e4230c22fc9d8cfe506";
+pub const PILOUT_HASH: &str = "df2a5cf7e5e0c4d86cad5cd83846e6d4d5a20329bd7aac6597b74310984e2530";
 
 //AIRGROUP CONSTANTS
 
@@ -28,7 +28,7 @@ pub const MAIN_AIR_IDS: &[usize] = &[0];
 
 pub const ROM_AIR_IDS: &[usize] = &[1];
 
-pub const ACCOUNTS_AIR_IDS: &[usize] = &[2];
+pub const ACCOUNTS_INIT_AIR_IDS: &[usize] = &[2];
 
 pub const MEM_AIR_IDS: &[usize] = &[3];
 
@@ -77,7 +77,11 @@ use serde::Serialize;
 use serde_arrays;
 
 
-fn default_array_accounts_root() -> [u64; 4] {
+fn default_array_accounts_init() -> [u64; 4] {
+    [0; 4]
+}
+
+fn default_array_accounts_result() -> [u64; 4] {
     [0; 4]
 }
 
@@ -92,8 +96,10 @@ fn default_array_inputs() -> [u64; 64] {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ZiskPublics {
-    #[serde(default = "default_array_accounts_root", with = "serde_arrays")]
-    pub accounts_root: [u64; 4],
+    #[serde(default = "default_array_accounts_init", with = "serde_arrays")]
+    pub accounts_init: [u64; 4],
+    #[serde(default = "default_array_accounts_result", with = "serde_arrays")]
+    pub accounts_result: [u64; 4],
     #[serde(default = "default_array_rom_root", with = "serde_arrays")]
     pub rom_root: [u64; 4],
     #[serde(default = "default_array_inputs", with = "serde_arrays")]
@@ -104,7 +110,8 @@ pub struct ZiskPublics {
 impl Default for ZiskPublics {
     fn default() -> Self {
         Self {  
-            accounts_root: [0; 4],  
+            accounts_init: [0; 4],  
+            accounts_result: [0; 4],  
             rom_root: [0; 4],  
             inputs: [0; 64], 
         }
@@ -112,7 +119,7 @@ impl Default for ZiskPublics {
 }
 
 values!(ZiskPublicValues<F> {
- accounts_root: [F; 4], rom_root: [F; 4], inputs: [F; 64],
+ accounts_init: [F; 4], accounts_result: [F; 4], rom_root: [F; 4], inputs: [F; 64],
 });
  
 values!(ZiskProofValues<F> {
@@ -135,11 +142,11 @@ trace!(RomTrace<F> {
  multiplicity: F,
 },  0, 1, 2097152 );
 
-trace!(AccountsFixed<F> {
+trace!(AccountsInitFixed<F> {
  __L1__: F,
 },  0, 2, 2097152 );
 
-trace!(AccountsTrace<F> {
+trace!(AccountsInitTrace<F> {
  multiplicity: F,
 },  0, 2, 2097152 );
 
@@ -307,7 +314,7 @@ trace!(RomRomTrace<F> {
  line: F, a_offset_imm0: F, a_imm1: F, b_offset_imm0: F, b_imm1: F, ind_width: F, op: F, store_offset: F, jmp_offset1: F, jmp_offset2: F, flags: F,
 }, 0, 1, 2097152, 0 );
 
-trace!(AccountsAccountsTrace<F> {
+trace!(AccountsInitAccountsTrace<F> {
  addr: F, val_high: F, val_low: F,
 }, 0, 2, 2097152, 0 );
 
@@ -339,7 +346,7 @@ values!(RomAirGroupValues<F> {
  gsum_result: FieldExtension<F>,
 });
 
-values!(AccountsAirGroupValues<F> {
+values!(AccountsInitAirGroupValues<F> {
  gsum_result: FieldExtension<F>,
 });
 
