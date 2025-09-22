@@ -1,4 +1,5 @@
 require "std_lookup.pil"
+require "std_permutation.pil"
 
 const int ACCOUNTS_INIT_BUS_ID = 7891;
 const int ACCOUNTS_RESULT_BUS_ID = 7892;
@@ -6,7 +7,7 @@ const int ACCOUNTS_RESULT_BUS_ID = 7892;
 public accounts_init[4];
 public accounts_result[4];
 
-airtemplate AccountsInit(int N = 2**21, int stack_enabled = 0, const int accounts_bus_id = ACCOUNTS_INIT_BUS_ID, const int RC=2) {
+airtemplate AccountsInit(int N = 2**21, const int bus_id = ACCOUNTS_INIT_BUS_ID, const int RC=2, const int result_bus_id = ACCOUNTS_RESULT_BUS_ID) {
     commit stage(0) public(accounts_init) accounts;
 
     col accounts addr;
@@ -15,15 +16,32 @@ airtemplate AccountsInit(int N = 2**21, int stack_enabled = 0, const int account
 
     col witness multiplicity;
 
-    lookup_proves(accounts_bus_id, [addr, val_high, val_low], mul: multiplicity);
+    lookup_proves(bus_id, [addr, val_high, val_low], mul: multiplicity);
+    permutation_assumes(result_bus_id, [addr, val_high, val_low]);
 }
 
-airtemplate AccountsResult(int N = 2**21, int stack_enabled = 0, const int accounts_bus_id = ACCOUNTS_RESULT_BUS_ID, const int RC=2) {
+airtemplate AccountsResult(int N = 2**21, const int bus_id = ACCOUNTS_RESULT_BUS_ID, const int RC=2) {
     commit stage(0) public(accounts_result) accounts;
 
     col accounts addr;
     col accounts val_high;
     col accounts val_low;
 
-    col witness multiplicity;
+    col witness val_high_init;
+    col witness val_low_init;
+
+    col witness val_high_wr;
+    col witness val_low_wr;
+    col witness sel_wr;
+
+    (1 - sel_wr) * sel_wr === 0;
+
+    (val_low - val_low_wr) * sel_wr === 0;
+    (val_high - val_high_wr) * sel_wr === 0;
+
+    (val_low - val_low_init) * (1 - sel_wr) === 0;
+    (val_high - val_high_wr) * (1 - sel_wr) === 0;
+
+    permutation_proves(bus_id, [addr, val_high_wr, val_low_wr], sel: sel_wr);
+    permutation_proves(bus_id, [addr, val_high_init, val_low_init]);
 }

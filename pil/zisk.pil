@@ -34,6 +34,7 @@ airgroup Zisk {
     Main(N: 2**22, RC: 2, operation_bus_id: OPERATION_BUS_ID);
     Rom(N: 2**21);
     AccountsInit(N: 2**21);
+    AccountsResult(N: 2**21);
 
     // Standard Operations
     Mem(N: 2**22, RC: 2, base_address: 0x2000_0000, size_mb: 4096, large_mem: 1);

@@ -72,7 +72,8 @@ airtemplate Mem(const int N = 2**21, const int id = MEMORY_ID, const int RC = 2,
                 const int base_address = 0, const int size_mb = 128, int immutable = 0,
                 const int free_input_mem = 0, const expr enable_flag = 1, const int use_predefined_ranges = 0, const int large_mem = 0,
                 const int is_rw_input = 0,
-                const int rw_input_init_bus = ACCOUNTS_INIT_BUS_ID) {
+                const int rw_input_init_bus = ACCOUNTS_INIT_BUS_ID,
+                const int rw_result_bus = ACCOUNTS_RESULT_BUS_ID) {
 
     col fixed SEGMENT_L1 = [1,0...];
     const expr SEGMENT_LAST = SEGMENT_L1';
@@ -348,7 +349,11 @@ airtemplate Mem(const int N = 2**21, const int id = MEMORY_ID, const int RC = 2,
 
     if (is_rw_input) {
         col witness air.init_val[RC];
-        lookup_assumes(rw_input_init_bus, [MEMORY_LOAD_OP, addr*bytes, 0, ...init_val, 0])
+        lookup_assumes(rw_input_init_bus, [addr*bytes, ...init_val]);
+        const expr previous_value_0 = SEGMENT_L1 * (previous_segment_value[0] - 'value[0]) + 'value[0];
+        const expr previous_value_1 = SEGMENT_L1 * (previous_segment_value[1] - 'value[1]) + 'value[1];
+        permutation_assumes(rw_result_bus, [addr*bytes, previous_value_0, previous_value_1], sel: addr_changes);
+        permutation_assumes(rw_result_bus, [addr*bytes, ...value], sel: SEGMENT_LAST * is_last_segment);
     }
 
     for (int index = 0; index < length(value); index++) {
