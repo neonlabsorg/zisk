@@ -2,18 +2,17 @@ use std::{collections::BTreeMap, sync::{atomic::{AtomicBool, AtomicU32, AtomicU6
 
 use sbpf_parser::mem::TxInput;
 use solana_sdk::{account::Account, instruction::{Instruction, InstructionError}};
-use zisk_core::ZiskRom;
 use solana_pubkey::Pubkey;
 
 use zisk_common::{AccountsInitBusData, BusDevice, BusDeviceMetrics, BusId, CheckPoint, ChunkId, InstanceType, MemBusData, Plan, Planner, ACCOUNTS_INIT_BUS_ID, MEM_BUS_ID};
-use zisk_pil::{AccountsInitAccountsTrace, AccountsInitAccountsTraceRow, ACCOUNTS_AIR_IDS, ACCOUNTS_INIT_AIR_IDS, ZISK_AIRGROUP_ID};
+use zisk_pil::{AccountsInitAccountsTrace, AccountsInitAccountsTraceRow, ACCOUNTS_INIT_AIR_IDS, ZISK_AIRGROUP_ID};
 
 use proofman_common::{AirInstance, FromTrace, PreCalculate};
 
 use fields::PrimeField64;
 
 use zisk_common::{
-    create_atomic_vec, BusDeviceMetrics, ComponentBuilder, CounterStats, Instance, InstanceCtx,
+    BusDeviceMetrics, ComponentBuilder, CounterStats, Instance, InstanceCtx,
     Planner,
 };
 
