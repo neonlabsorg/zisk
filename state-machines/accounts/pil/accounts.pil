@@ -93,17 +93,19 @@ airtemplate AccountsInit(int N = 2**21, const int bus_id = ACCOUNTS_INIT_BUS_ID,
     hash_input[0] += addr;
     hash_input[1] += val[0];
     hash_input[2] += val[1];
-
-    permutation_assumes(poseidon_id, [...'hash_accum, ...hash_accum], L1)
+    permutation_assumes(poseidon_id, [...'hash_accum, ...hash_accum], L1);
+    for (int i = 0; i < 4; ++i) {
+        L1' * (hash_accum[i] - accounts_init[i]) === 0;
+    }
 }
 
-airtemplate AccountsResult(int N = 2**21, const int bus_id = ACCOUNTS_RESULT_BUS_ID, const int RC=2) {
+airtemplate AccountsResult(int N = 2**21, const int bus_id = ACCOUNTS_RESULT_BUS_ID, const int RC=2, const int poseidon_id = POSEIDON_PERMUTER) {
     col witness addr;
-    col witness air.val[RC];
+    col witness val[RC];
 
-    col witness air.val_init[RC];
+    col witness val_init[RC];
 
-    col witness air.val_wr[RC];
+    col witness val_wr[RC];
     col witness sel_wr;
 
     (1 - sel_wr) * sel_wr === 0;
@@ -115,4 +117,18 @@ airtemplate AccountsResult(int N = 2**21, const int bus_id = ACCOUNTS_RESULT_BUS
 
     permutation_proves(bus_id, [addr, ...val_wr], sel: sel_wr);
     permutation_proves(bus_id, [addr, ...val_init]);
+
+    col fixed L1 = [1,0...];
+    col witness hash_accum[POSEIDON_WIDTH];
+    expr hash_input[POSEIDON_WIDTH];
+    for (int i = 0; i < POSEIDON_WIDTH; ++i) {
+        hash_input[i] = (1 - L1) * 'hash_accum[i];
+    }
+    hash_input[0] += addr;
+    hash_input[1] += val[0];
+    hash_input[2] += val[1];
+    permutation_assumes(poseidon_id, [...'hash_accum, ...hash_accum], L1);
+    for (int i = 0; i < 4; ++i) {
+        L1' * (hash_accum[i] - accounts_result[i]) === 0;
+    }
 }
