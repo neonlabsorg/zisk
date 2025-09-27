@@ -33,6 +33,8 @@ airgroup Zisk {
     // Main Program
     Main(N: 2**22, RC: 2, operation_bus_id: OPERATION_BUS_ID);
     Rom(N: 2**21);
+
+    PoseidonPermuter();
     AccountsInit(N: 2**21);
     AccountsResult(N: 2**21);
 
