@@ -5,7 +5,7 @@ use solana_sdk::{account::Account, instruction::{Instruction, InstructionError}}
 use solana_pubkey::Pubkey;
 
 use zisk_common::{AccountsInitBusData, BusDevice, BusDeviceMetrics, BusId, CheckPoint, ChunkId, InstanceType, MemBusData, Plan, Planner, ACCOUNTS_INIT_BUS_ID, MEM_BUS_ID};
-use zisk_pil::{AccountsInitAccountsTrace, AccountsInitAccountsTraceRow, ACCOUNTS_INIT_AIR_IDS, ZISK_AIRGROUP_ID};
+use zisk_pil::{AccountsInitTrace, AccountsInitTraceRow, ACCOUNTS_INIT_AIR_IDS, ZISK_AIRGROUP_ID};
 
 use proofman_common::{AirInstance, FromTrace, PreCalculate};
 
@@ -76,19 +76,20 @@ impl<F: PrimeField64> Instance<F> for AccountsInitInstance {
             trace_buffer: Vec<F>,
         ) -> Option<proofman_common::AirInstance<F>> 
     {
-        let mut trace = AccountsInitAccountsTrace::<F>::new_from_vec(trace_buffer);
+        let mut trace = AccountsInitTrace::<F>::new_from_vec(trace_buffer);
 
         let mut row = 0;
         for (i, addr) in self.initial_state.iter().enumerate() {
             trace[i].addr = F::from_u64(addr);
             let val = self.initial_state.read(addr).unwrap_or(0);
-            trace[i].val_low = F::from_u32(val as u32);
-            trace[i].val_high = F::from_u32((val >> 32) as u32);
+            trace[i].val[0] = F::from_u32(val as u32);
+            trace[i].val[1] = F::from_u32((val >> 32) as u32);
+            trace[i].multiplicity = F::from_u32(self.stats.get(&addr).map(|x| x.load(std::sync::atomic::Ordering::Relaxed)).unwrap_or(0));
 
             row += 1;
         }
         for i in row..trace.num_rows() {
-            trace[i] = AccountsInitAccountsTraceRow::default();
+            trace[i] = AccountsInitTraceRow::default();
         }
 
         Some(AirInstance::new_from_trace(FromTrace::new(&mut trace)))
