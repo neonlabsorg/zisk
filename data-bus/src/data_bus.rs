@@ -63,7 +63,7 @@ impl<D, BD: BusDevice<D>> DataBus<D, BD> {
     pub fn new() -> Self {
         Self {
             devices: Vec::new(),
-            devices_bus_id_map: vec![vec![], vec![], vec![], vec![], vec![]],
+            devices_bus_id_map: vec![vec![], vec![], vec![], vec![]],
             pending_transfers: VecDeque::new(),
             none_devices: vec![],
             active_devices: 0,

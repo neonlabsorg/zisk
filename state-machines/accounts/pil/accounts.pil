@@ -38,7 +38,20 @@ airtemplate PoseidonPermuter(int N = 2**21, const int bus_id = POSEIDON_PERMUTER
     last_round * (full_round - 1) === 0;
     first_round * (full_round - 1) === 0;
 
-    const int arc[POSEIDON_WIDTH] = [1,1,1,1,1,1,1,1,1,1,1,1];
+    const int arc[POSEIDON_WIDTH] = [
+                3014888795719246729,
+                5963864597674384598,
+                2768803421146185923,
+                18185368981409310590,
+                13796279610465360307,
+                13258428655399477418,
+                6311108545355074403,
+                9091478136808910551,
+                5657164823329005273,
+                14773843000339061443,
+                5277400092504871362,
+                6244933830025130194
+            ];
     expr b[POSEIDON_WIDTH];
     for (int i = 0; i < POSEIDON_WIDTH; ++i) {
         b[i] = 'state[i] + arc[i];
@@ -93,7 +106,7 @@ airtemplate AccountsInit(int N = 2**21, const int bus_id = ACCOUNTS_INIT_BUS_ID,
     hash_input[0] += addr;
     hash_input[1] += val[0];
     hash_input[2] += val[1];
-    permutation_assumes(poseidon_id, [...'hash_accum, ...hash_accum], L1);
+    permutation_assumes(poseidon_id, [...hash_input, ...hash_accum], L1);
     for (int i = 0; i < 4; ++i) {
         L1' * (hash_accum[i] - accounts_init[i]) === 0;
     }
@@ -127,7 +140,7 @@ airtemplate AccountsResult(int N = 2**21, const int bus_id = ACCOUNTS_RESULT_BUS
     hash_input[0] += addr;
     hash_input[1] += val[0];
     hash_input[2] += val[1];
-    permutation_assumes(poseidon_id, [...'hash_accum, ...hash_accum], L1);
+    permutation_assumes(poseidon_id, [...hash_input, ...hash_accum], L1);
     for (int i = 0; i < 4; ++i) {
         L1' * (hash_accum[i] - accounts_result[i]) === 0;
     }

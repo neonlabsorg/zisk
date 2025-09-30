@@ -4,7 +4,7 @@ use sbpf_parser::mem::TxInput;
 use solana_sdk::{account::Account, instruction::{Instruction, InstructionError}};
 use solana_pubkey::Pubkey;
 
-use zisk_common::{AccountsInitBusData, BusDevice, BusDeviceMetrics, BusId, CheckPoint, ChunkId, InstanceType, MemBusData, Plan, Planner, ACCOUNTS_INIT_BUS_ID, MEM_BUS_ID};
+use zisk_common::{AccountsBusData, BusDevice, BusDeviceMetrics, BusId, CheckPoint, ChunkId, InstanceType, MemBusData, Plan, Planner, ACCOUNTS_BUS_ID, ACCOUNTS_INIT_DATA_TYPE, MEM_BUS_ID};
 use zisk_pil::{AccountsInitTrace, AccountsInitTraceRow, ACCOUNTS_INIT_AIR_IDS, ZISK_AIRGROUP_ID};
 
 use proofman_common::{AirInstance, FromTrace, PreCalculate};
@@ -12,9 +12,10 @@ use proofman_common::{AirInstance, FromTrace, PreCalculate};
 use fields::PrimeField64;
 
 use zisk_common::{
-    BusDeviceMetrics, ComponentBuilder, CounterStats, Instance, InstanceCtx,
-    Planner,
+    ComponentBuilder, CounterStats, Instance, InstanceCtx,
 };
+
+use crate::poseidon::{PoseidonSM, POSEIDON_WIDTH};
 
 pub struct AccountsInitSM {
     initial_state: Arc<TxInput>,
@@ -22,23 +23,22 @@ pub struct AccountsInitSM {
 }
 
 impl AccountsInitSM {
-    pub fn new(instruction: Instruction, accs: Vec<(Pubkey, Account)>) -> Result<Self, InstructionError> {
+    pub fn new(input: Arc<TxInput>) -> Self {
         let mut stats = BTreeMap::<u64, AtomicU32>::new();
-        let input = TxInput::new_with_defaults(&instruction, accs.as_slice())?;
         for addr in input.iter() {
             stats.insert(addr, 0.into());
         }
 
-        Ok(Self {
+        Self {
             initial_state: input.into(),
             stats: stats.into()
-        })
+        }
     }
 }
 
 impl<F: PrimeField64> ComponentBuilder<F> for AccountsInitSM {
     fn build_instance(&self, ictx: InstanceCtx) -> Box<dyn Instance<F>> {
-        Box::new(AccountsInitInstance { ictx, calculated: false.into(), stats: self.stats.clone(), initial_state: self.initial_state.clone() })
+        Box::new(AccountsInitInstance { ictx, calculated: false.into(), stats: self.stats.clone(), initial_state: self.initial_state.clone(), poseidon: PoseidonSM::new() })
     }
 
     fn build_planner(&self) -> Box<dyn Planner> {
@@ -57,6 +57,8 @@ pub struct AccountsInitInstance {
     initial_state: Arc<TxInput>,
     stats: Arc<BTreeMap<u64, AtomicU32>>,
     calculated: AtomicBool,
+
+    poseidon: PoseidonSM
 }
 
 impl<F: PrimeField64> Instance<F> for AccountsInitInstance {
@@ -79,12 +81,17 @@ impl<F: PrimeField64> Instance<F> for AccountsInitInstance {
         let mut trace = AccountsInitTrace::<F>::new_from_vec(trace_buffer);
 
         let mut row = 0;
+        let mut hash_input = [0; POSEIDON_WIDTH];
         for (i, addr) in self.initial_state.iter().enumerate() {
             trace[i].addr = F::from_u64(addr);
             let val = self.initial_state.read(addr).unwrap_or(0);
-            trace[i].val[0] = F::from_u32(val as u32);
-            trace[i].val[1] = F::from_u32((val >> 32) as u32);
+            let val = [val as u32, (val >> 32) as u32];
+            trace[i].val[0] = F::from_u32(val[0]);
+            trace[i].val[1] = F::from_u32(val[1]);
             trace[i].multiplicity = F::from_u32(self.stats.get(&addr).map(|x| x.load(std::sync::atomic::Ordering::Relaxed)).unwrap_or(0));
+
+            hash_input = self.poseidon.permute(&hash_input, &[addr, val[0].into(), val[1].into(), 0_u64]);
+            trace[i].hash_accum = hash_input.map(|x| F::from_u64(x));
 
             row += 1;
         }
@@ -114,7 +121,7 @@ pub struct AccountsInitCounter {
 
 impl BusDevice<u64> for AccountsInitCounter {
     fn bus_id(&self) -> Vec<zisk_common::BusId> {
-        vec![ ACCOUNTS_INIT_BUS_ID ]
+        vec![ ACCOUNTS_BUS_ID, MEM_BUS_ID ]
     }
 
     fn as_any(self: Box<Self>) -> Box<dyn std::any::Any> {
@@ -128,16 +135,18 @@ impl BusDevice<u64> for AccountsInitCounter {
             _pending: &mut std::collections::VecDeque<(BusId, Vec<u64>)>,
         ) -> bool
     {
-        debug_assert!(*bus_id == ACCOUNTS_INIT_BUS_ID);
-        let addr = AccountsInitBusData::get_addr(data);
-        if let Some(stats) = self.stats.get(&(addr as u64)) {
-            stats.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        debug_assert!(*bus_id == ACCOUNTS_BUS_ID);
+        if AccountsBusData::val_type(data) == ACCOUNTS_INIT_DATA_TYPE {
+            let addr = AccountsBusData::get_addr(data);
+            if let Some(stats) = self.stats.get(&(addr as u64)) {
+                stats.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
         }
         true
     }
 }
 
-pub struct AccountsInitPlanner;
+struct AccountsInitPlanner;
 
 impl Planner for AccountsInitPlanner {
     fn plan(&self, metrics: Vec<(ChunkId, Box<dyn BusDeviceMetrics>)>) -> Vec<Plan> {
