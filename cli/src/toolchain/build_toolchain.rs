@@ -25,7 +25,7 @@ impl BuildToolchainCmd {
                 }
 
                 println!("No ZISK_BUILD_DIR detected, cloning rust.");
-                let repo_url = "https://{}@github.com/0xPolygonHermez/rust";
+                let repo_url = "https://{}@github.com/neonlabs/zisk-rust";
 
                 Command::new("git")
                     .args([
@@ -67,7 +67,10 @@ impl BuildToolchainCmd {
         // Build the toolchain.
         Command::new("python3")
             .env("RUST_TARGET_PATH", &temp_dir)
-            .env("CARGO_TARGET_RISCV64IMA_ZISK_ZKVM_ELF_RUSTFLAGS", "-Cpasses=lower-atomic")
+            .env(
+                "CARGO_TARGET_RISCV64IMA_ZISK_ZKVM_ELF_RUSTFLAGS",
+                "-Cpasses=lower-atomic --cfg target_os=\"solana\"",
+            )
             .args([
                 "x.py",
                 "build",
