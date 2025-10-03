@@ -25,7 +25,7 @@ impl BuildToolchainCmd {
                 }
 
                 println!("No ZISK_BUILD_DIR detected, cloning rust.");
-                let repo_url = "https://{}@github.com/neonlabs/zisk-rust";
+                let repo_url = "https://github.com/neonlabsorg/zisk-rust";
 
                 Command::new("git")
                     .args([

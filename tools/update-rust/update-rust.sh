@@ -21,7 +21,7 @@ if [ ! -d "$ZISK_RUST_DIR" ]; then
     # Cloning Zisk Rust repository
     log_info "Cloning Zisk Rust repository in directory ${ZISK_RUST_DIR} (this will take some minutes)"
     exec_git \
-        "git clone git@github.com:neonlabs/zisk-rust.git ${ZISK_RUST_DIR}" \
+        "git clone git@github.com:neonlabsorg/zisk-rust.git ${ZISK_RUST_DIR}" \
         "Failed to clone Zisk Rust repository"
 
     # Change directory to Zisk Rust repository
