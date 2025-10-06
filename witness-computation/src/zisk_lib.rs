@@ -12,6 +12,7 @@ use precomp_arith_eq::ArithEqManager;
 use precomp_keccakf::KeccakfManager;
 use precomp_sha256f::Sha256fManager;
 use proofman::register_std;
+use sm_accounts::{init::AccountsInitSM, poseidon::PoseidonPermuter, AccountsSMBundle};
 use sm_arith::ArithSM;
 use sm_binary::BinarySM;
 use sm_mem::Mem;
@@ -33,6 +34,7 @@ pub struct WitnessLib<F: PrimeField64> {
     local_rank: i32,
     base_port: Option<u16>,
     unlock_mapped_memory: bool,
+    poseidon_permuter: PoseidonPermuter<F>
 }
 
 #[no_mangle]
@@ -57,6 +59,7 @@ fn init_library(
         local_rank: local_rank.unwrap_or(0),
         base_port,
         unlock_mapped_memory,
+        poseidon_permuter: PoseidonPermuter::<Goldilocks>::default()
     });
 
     Ok(result)
@@ -104,6 +107,8 @@ impl<F: PrimeField64> WitnessLibrary<F> for WitnessLib<F> {
         //     arith_eq_sm.clone(),
         // ]);
 
+        let accounts_bundle = AccountsSMBundle::new(self.poseidon_permuter.clone());
+
         let sm_bundle = StaticSMBundle::new(
             false,
             mem_sm.clone(),
@@ -114,6 +119,7 @@ impl<F: PrimeField64> WitnessLibrary<F> for WitnessLib<F> {
             keccakf_sm.clone(),
             sha256f_sm.clone(),
             arith_eq_sm.clone(),
+            accounts_bundle.clone()
         );
 
         // Step 5: Create the executor and register the secondary state machines
@@ -121,12 +127,12 @@ impl<F: PrimeField64> WitnessLibrary<F> for WitnessLib<F> {
             zisk_rom,
             std,
             sm_bundle,
-            Some(rom_sm.clone()),
             self.chunk_size,
             self.world_rank,
             self.local_rank,
             self.base_port,
             self.unlock_mapped_memory,
+            accounts_bundle.clone(),
             accounts
         );
 

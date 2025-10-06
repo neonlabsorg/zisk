@@ -3,21 +3,6 @@
 version = 4
 
 [[package]]
-name = "accounts"
-version = "0.10.0"
-dependencies = [
- "fields",
- "proofman-common",
- "sbpf-parser",
- "solana-account",
- "solana-pubkey",
- "solana-sdk",
- "zisk-common",
- "zisk-core",
- "zisk-pil",
-]
-
-[[package]]
 name = "addr2line"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1610,8 +1595,8 @@ dependencies = [
  "rayon",
  "rom-setup",
  "sbpf-parser",
+ "sm-accounts",
  "sm-main",
- "sm-rom",
  "solana-account",
  "solana-pubkey",
  "svm-tracer",
@@ -4359,6 +4344,22 @@ name = "slab"
 version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04dc19736151f35336d325007ac991178d504a119863a2fcb3758cdb5e52c50d"
+
+[[package]]
+name = "sm-accounts"
+version = "0.10.0"
+dependencies = [
+ "fields",
+ "proofman-common",
+ "sbpf-parser",
+ "sm-mem",
+ "solana-account",
+ "solana-pubkey",
+ "solana-sdk",
+ "zisk-common",
+ "zisk-core",
+ "zisk-pil",
+]
 
 [[package]]
 name = "sm-arith"
@@ -7505,6 +7506,7 @@ dependencies = [
  "proofman-util",
  "rayon",
  "sbpf-parser",
+ "sm-accounts",
  "sm-arith",
  "sm-binary",
  "sm-main",
@@ -7542,7 +7544,9 @@ dependencies = [
  "pprof",
  "rayon",
  "riscv",
+ "sbpf-parser",
  "serde_json",
+ "sm-accounts",
  "sm-mem",
  "solana-account",
  "solana-instruction",

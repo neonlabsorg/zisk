@@ -1,10 +1,9 @@
-use std::{collections::BTreeMap, sync::{atomic::{AtomicBool, AtomicU32, AtomicU64}, Arc}};
+use std::{collections::BTreeMap, sync::{atomic::{AtomicBool, AtomicU32}, Arc}};
 
 use sbpf_parser::mem::TxInput;
-use solana_sdk::{account::Account, instruction::{Instruction, InstructionError}};
-use solana_pubkey::Pubkey;
+use sm_mem::MEMORY_LOAD_OP;
 
-use zisk_common::{AccountsBusData, BusDevice, BusDeviceMetrics, BusId, CheckPoint, ChunkId, InstanceType, MemBusData, Plan, Planner, ACCOUNTS_BUS_ID, ACCOUNTS_INIT_DATA_TYPE, MEM_BUS_ID};
+use zisk_common::{ BusDevice, BusDeviceMetrics, BusId, CheckPoint, ChunkId, InstanceType, MemBusData, Plan, Planner, MEM_BUS_ID};
 use zisk_pil::{AccountsInitTrace, AccountsInitTraceRow, ACCOUNTS_INIT_AIR_IDS, ZISK_AIRGROUP_ID};
 
 use proofman_common::{AirInstance, FromTrace, PreCalculate};
@@ -12,18 +11,20 @@ use proofman_common::{AirInstance, FromTrace, PreCalculate};
 use fields::PrimeField64;
 
 use zisk_common::{
-    ComponentBuilder, CounterStats, Instance, InstanceCtx,
+    ComponentBuilder, Instance, InstanceCtx,
 };
 
 use crate::poseidon::{PoseidonSM, POSEIDON_WIDTH};
 
-pub struct AccountsInitSM {
+#[derive(Clone)]
+pub struct AccountsInitSM<F: PrimeField64> {
     initial_state: Arc<TxInput>,
-    stats: Arc<BTreeMap<u64, AtomicU32>>
+    stats: Arc<BTreeMap<u64, AtomicU32>>,
+    poseidon: PoseidonSM<F>
 }
 
-impl AccountsInitSM {
-    pub fn new(input: Arc<TxInput>) -> Self {
+impl<F: PrimeField64> AccountsInitSM<F> {
+    pub fn new(input: Arc<TxInput>, poseidon: PoseidonSM<F>) -> Self {
         let mut stats = BTreeMap::<u64, AtomicU32>::new();
         for addr in input.iter() {
             stats.insert(addr, 0.into());
@@ -31,17 +32,64 @@ impl AccountsInitSM {
 
         Self {
             initial_state: input.into(),
-            stats: stats.into()
+            stats: stats.into(),
+            poseidon
+        }
+    }
+
+    pub fn record_hashes(&self) {
+        let mut hash_input = [F::ZERO; POSEIDON_WIDTH];
+        for (_i, addr) in self.initial_state.iter().enumerate() {
+            let val = self.initial_state.read(addr).unwrap_or(0);
+            let val = [F::from_u32(val as u32), F::from_u32((val >> 32) as u32)];
+
+            let input = [F::from_u64(addr), val[0], val[1], F::ZERO];
+            self.poseidon.record(&hash_input, &input);
+            hash_input = self.poseidon.permute(&hash_input, &input);
+        }
+    }
+
+    fn compute_witness(
+            &self,
+            trace_buffer: Vec<F>,
+        ) -> Option<proofman_common::AirInstance<F>> 
+    {
+        let mut trace = AccountsInitTrace::<F>::new_from_vec(trace_buffer);
+
+        let mut row = 0;
+        let mut hash_input = [F::ZERO; POSEIDON_WIDTH];
+        for (i, addr) in self.initial_state.iter().enumerate() {
+            trace[i].addr = F::from_u64(addr);
+            let val = self.initial_state.read(addr).unwrap_or(0);
+            let val = [F::from_u32(val as u32), F::from_u32((val >> 32) as u32)];
+            trace[i].val = val.clone();
+            trace[i].multiplicity = F::from_u32(self.stats.get(&addr).map(|x| x.load(std::sync::atomic::Ordering::Relaxed)).unwrap_or(0));
+
+            hash_input = self.poseidon.permute(&hash_input, &[F::from_u64(addr), val[0], val[1], F::ZERO]);
+            trace[i].hash_accum = hash_input;
+
+            row += 1;
+        }
+        for i in row..trace.num_rows() {
+            trace[i] = AccountsInitTraceRow::default();
+        }
+
+        Some(AirInstance::new_from_trace(FromTrace::new(&mut trace)))
+    }
+
+    pub fn build_counter(&self) -> AccountsInitCounter {
+        AccountsInitCounter {
+            stats: self.stats.clone()
         }
     }
 }
 
-impl<F: PrimeField64> ComponentBuilder<F> for AccountsInitSM {
+impl<F: PrimeField64> ComponentBuilder<F> for AccountsInitSM<F> {
     fn build_instance(&self, ictx: InstanceCtx) -> Box<dyn Instance<F>> {
-        Box::new(AccountsInitInstance { ictx, calculated: false.into(), stats: self.stats.clone(), initial_state: self.initial_state.clone(), poseidon: PoseidonSM::new() })
+        Box::new(AccountsInitInstance { ictx, calculated: false.into(), sm: self.clone() })
     }
 
-    fn build_planner(&self) -> Box<dyn Planner> {
+    fn build_planner(&self) -> Box<dyn Planner + 'static> {
         Box::new(AccountsInitPlanner {})
     }
 
@@ -50,18 +98,15 @@ impl<F: PrimeField64> ComponentBuilder<F> for AccountsInitSM {
     }
 }
 
-pub struct AccountsInitInstance {
+pub struct AccountsInitInstance<F: PrimeField64> {
     /// The instance context.
     ictx: InstanceCtx,
 
-    initial_state: Arc<TxInput>,
-    stats: Arc<BTreeMap<u64, AtomicU32>>,
     calculated: AtomicBool,
-
-    poseidon: PoseidonSM
+    sm: AccountsInitSM<F>
 }
 
-impl<F: PrimeField64> Instance<F> for AccountsInitInstance {
+impl<F: PrimeField64> Instance<F> for AccountsInitInstance<F> {
     fn instance_type(&self) -> InstanceType {
         InstanceType::Instance
     }
@@ -78,28 +123,7 @@ impl<F: PrimeField64> Instance<F> for AccountsInitInstance {
             trace_buffer: Vec<F>,
         ) -> Option<proofman_common::AirInstance<F>> 
     {
-        let mut trace = AccountsInitTrace::<F>::new_from_vec(trace_buffer);
-
-        let mut row = 0;
-        let mut hash_input = [0; POSEIDON_WIDTH];
-        for (i, addr) in self.initial_state.iter().enumerate() {
-            trace[i].addr = F::from_u64(addr);
-            let val = self.initial_state.read(addr).unwrap_or(0);
-            let val = [val as u32, (val >> 32) as u32];
-            trace[i].val[0] = F::from_u32(val[0]);
-            trace[i].val[1] = F::from_u32(val[1]);
-            trace[i].multiplicity = F::from_u32(self.stats.get(&addr).map(|x| x.load(std::sync::atomic::Ordering::Relaxed)).unwrap_or(0));
-
-            hash_input = self.poseidon.permute(&hash_input, &[addr, val[0].into(), val[1].into(), 0_u64]);
-            trace[i].hash_accum = hash_input.map(|x| F::from_u64(x));
-
-            row += 1;
-        }
-        for i in row..trace.num_rows() {
-            trace[i] = AccountsInitTraceRow::default();
-        }
-
-        Some(AirInstance::new_from_trace(FromTrace::new(&mut trace)))
+        self.sm.compute_witness(trace_buffer)
     }
 
     fn reset(&self) {
@@ -111,7 +135,7 @@ impl<F: PrimeField64> Instance<F> for AccountsInitInstance {
             _chunk_id: ChunkId,
         ) -> Option<Box<dyn zisk_common::BusDevice<zisk_common::PayloadType>>> 
     {
-        Some(Box::new(AccountsInitCounter{stats: self.stats.clone() }))
+        Some(Box::new(AccountsInitCounter{stats: self.sm.stats.clone() }))
     }
 }
 
@@ -121,7 +145,7 @@ pub struct AccountsInitCounter {
 
 impl BusDevice<u64> for AccountsInitCounter {
     fn bus_id(&self) -> Vec<zisk_common::BusId> {
-        vec![ ACCOUNTS_BUS_ID, MEM_BUS_ID ]
+        vec![ MEM_BUS_ID ]
     }
 
     fn as_any(self: Box<Self>) -> Box<dyn std::any::Any> {
@@ -135,9 +159,9 @@ impl BusDevice<u64> for AccountsInitCounter {
             _pending: &mut std::collections::VecDeque<(BusId, Vec<u64>)>,
         ) -> bool
     {
-        debug_assert!(*bus_id == ACCOUNTS_BUS_ID);
-        if AccountsBusData::val_type(data) == ACCOUNTS_INIT_DATA_TYPE {
-            let addr = AccountsBusData::get_addr(data);
+        debug_assert!(*bus_id == MEM_BUS_ID );
+        if MemBusData::get_op(data) == MEMORY_LOAD_OP {
+            let addr = MemBusData::get_addr(data);
             if let Some(stats) = self.stats.get(&(addr as u64)) {
                 stats.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }

@@ -1,5 +1,5 @@
 [package]
-name = "accounts"
+name = "sm-accounts"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -17,3 +17,4 @@ solana-account.workspace = true
 fields = { workspace=true }
 zisk-pil = { path = "../../pil" }
 proofman-common.workspace = true
+sm-mem = { version = "0.10.0", path = "../mem" }

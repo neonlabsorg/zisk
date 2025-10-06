@@ -19,8 +19,10 @@ riscv = { path = "../riscv" }
 data-bus = { path = "../data-bus" }
 rayon = { workspace = true }
 sm-mem = { path = "../state-machines/mem" }
+sm-accounts = { path = "../state-machines/accounts" }
 svm-tracer = { workspace = true }
 mollusk-svm = { workspace = true }
+sbpf-parser.workspace = true
 
 fields = { workspace=true }
 clap = { version = "4.5.9", features = ["derive", "env"] }

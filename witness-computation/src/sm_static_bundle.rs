@@ -7,6 +7,7 @@ use precomp_arith_eq::ArithEqManager;
 use precomp_keccakf::KeccakfManager;
 use precomp_sha256f::Sha256fManager;
 use proofman_common::ProofCtx;
+use sm_accounts::AccountsSMBundle;
 use sm_arith::ArithSM;
 use sm_binary::BinarySM;
 use sm_mem::Mem;
@@ -20,7 +21,7 @@ use executor::NestedDeviceMetricsList;
 
 use crate::StaticDataBus;
 
-const NUM_SM: usize = 8;
+const NUM_SM: usize = 10;
 const NUM_SM_WITHOUT_MAIN: usize = NUM_SM - 1;
 
 const _MAIN_SM_ID: usize = 0;
@@ -31,6 +32,8 @@ const ARITH_SM_ID: usize = 4;
 const KECCAK_SM_ID: usize = 5;
 const SHA256_SM_ID: usize = 6;
 const ARITH_EQ_SM_ID: usize = 7;
+const ACCOUNTS_RESULT_SM_ID: usize = 8;
+const ACCOUNTS_INIT_SM_ID: usize = 9;
 
 pub struct StaticSMBundle<F: PrimeField64> {
     process_only_operation_bus: bool,
@@ -41,6 +44,7 @@ pub struct StaticSMBundle<F: PrimeField64> {
     keccakf_sm: Arc<KeccakfManager<F>>,
     sha256f_sm: Arc<Sha256fManager<F>>,
     arith_eq_sm: Arc<ArithEqManager<F>>,
+    accounts: AccountsSMBundle<F>
 }
 
 impl<F: PrimeField64> StaticSMBundle<F> {
@@ -54,6 +58,7 @@ impl<F: PrimeField64> StaticSMBundle<F> {
         keccakf_sm: Arc<KeccakfManager<F>>,
         sha256f_sm: Arc<Sha256fManager<F>>,
         arith_eq_sm: Arc<ArithEqManager<F>>,
+        accounts: AccountsSMBundle<F>
     ) -> Self {
         Self {
             process_only_operation_bus,
@@ -65,6 +70,7 @@ impl<F: PrimeField64> StaticSMBundle<F> {
             keccakf_sm,
             sha256f_sm,
             arith_eq_sm,
+            accounts
         }
     }
 }
@@ -75,7 +81,7 @@ impl<F: PrimeField64> SMBundle<F> for StaticSMBundle<F> {
 
         let mut it = vec_counters.into_iter();
 
-        vec![
+        let mut result = vec![
             self.mem_sm.build_planner().plan(it.next().unwrap()),
             <RomSM as ComponentBuilder<F>>::build_planner(&*self.rom_sm).plan(it.next().unwrap()),
             self.binary_sm.build_planner().plan(it.next().unwrap()),
@@ -84,7 +90,11 @@ impl<F: PrimeField64> SMBundle<F> for StaticSMBundle<F> {
             self.keccakf_sm.build_planner().plan(it.next().unwrap()),
             self.sha256f_sm.build_planner().plan(it.next().unwrap()),
             self.arith_eq_sm.build_planner().plan(it.next().unwrap()),
-        ]
+        ];
+
+        result.extend(self.accounts.plan(it).into_iter());
+
+        result
     }
 
     fn configure_instances(&self, pctx: &ProofCtx<F>, plannings: &[Vec<Plan>]) {
@@ -115,6 +125,7 @@ impl<F: PrimeField64> SMBundle<F> for StaticSMBundle<F> {
     fn build_data_bus_counters(
         &self,
     ) -> impl DataBusTrait<u64, Box<dyn BusDeviceMetrics>> + Send + Sync + 'static {
+        let (init, result) = self.accounts.build_counters();
         StaticDataBus::new(
             self.process_only_operation_bus,
             self.mem_sm.build_mem_counter(),
@@ -123,6 +134,8 @@ impl<F: PrimeField64> SMBundle<F> for StaticSMBundle<F> {
             self.keccakf_sm.build_keccakf_counter(),
             self.sha256f_sm.build_sha256f_counter(),
             self.arith_eq_sm.build_arith_eq_counter(),
+            init,
+            result
         )
     }
 

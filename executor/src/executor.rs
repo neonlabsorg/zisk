@@ -24,7 +24,7 @@ use pil_std_lib::Std;
 use proofman_common::{create_pool, BufferPool, PreCalculate, ProofCtx, SetupCtx};
 use proofman_util::{timer_start_info, timer_stop_and_log_info};
 use rom_setup::{gen_elf_hash, gen_rom_hash};
-use sm_rom::RomSM;
+use sm_accounts::AccountsSMBundle;
 use witness::WitnessComponent;
 
 use rayon::prelude::*;
@@ -118,9 +118,6 @@ pub struct ZiskExecutor<F: PrimeField64, BD: SMBundle<F>> {
     /// State machine bundle, containing the state machines and their configurations.
     sm_bundle: BD,
 
-    /// Optional ROM state machine, used for assembly ROM execution.
-    rom_sm: Option<Arc<RomSM>>,
-
     /// Collectors by instance, storing statistics and collectors for each instance.
     #[allow(clippy::type_complexity)]
     collectors_by_instance:
@@ -144,13 +141,11 @@ pub struct ZiskExecutor<F: PrimeField64, BD: SMBundle<F>> {
     /// This is used to unlock the memory map for the ROM file.
     unlock_mapped_memory: bool,
 
+    acc_sms: AccountsSMBundle<F>,
     accs: Vec<(solana_pubkey::Pubkey, solana_account::Account)>
 }
 
 impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
-    /// The number of threads to use for parallel processing when computing minimal traces.
-    const NUM_THREADS: usize = 16;
-
     /// The maximum number of steps to execute in the emulator or assembly runner.
     const MAX_NUM_STEPS: u64 = 1 << 32;
 
@@ -163,12 +158,12 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
         zisk_rom: Arc<ZiskRom>,
         std: Arc<Std<F>>,
         sm_bundle: BD,
-        rom_sm: Option<Arc<RomSM>>,
         chunk_size: u64,
         world_rank: i32,
         local_rank: i32,
         base_port: Option<u16>,
         unlock_mapped_memory: bool,
+        acc_sms: AccountsSMBundle<F>,
         accs: Vec<(solana_pubkey::Pubkey, solana_account::Account)>
     ) -> Self {
         Self {
@@ -182,13 +177,13 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
             std,
             execution_result: Mutex::new(ZiskExecutionResult::default()),
             sm_bundle,
-            rom_sm,
             stats: Arc::new(Mutex::new(ExecutorStats::new())),
             chunk_size,
             world_rank,
             local_rank,
             base_port,
             unlock_mapped_memory,
+            acc_sms,
             accs
         }
     }
@@ -210,7 +205,7 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
     /// # Returns
     /// A vector of `EmuTrace` instances representing minimal traces.
     fn execute_with_emulator(&self, input_data_path: Option<PathBuf>) -> Vec<EmuTrace> {
-        let min_traces = self.run_emulator(Self::NUM_THREADS, input_data_path);
+        let min_traces = self.run_emulator(input_data_path);
 
         // Store execute steps
         let steps = min_traces.iter().map(|t| t.steps).sum::<u64>();
@@ -219,7 +214,7 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
         min_traces
     }
 
-    fn run_emulator(&self, num_threads: usize, input_data_path: Option<PathBuf>) -> Vec<EmuTrace> {
+    fn run_emulator(&self, input_data_path: Option<PathBuf>) -> Vec<EmuTrace> {
         // Call emulate with these options
         let input_data = if input_data_path.is_some() {
             // Read inputs data from the provided inputs path
@@ -240,6 +235,7 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
             &self.zisk_rom,
             &input_data,
             &emu_options,
+            &self.acc_sms,
             self.accs.as_slice()
         )
         .expect("Error during emulator execution");

@@ -8,6 +8,7 @@ use data_bus::DataBusTrait;
 use precomp_arith_eq::ArithEqCounterInputGen;
 use precomp_keccakf::KeccakfCounterInputGen;
 use precomp_sha256f::Sha256fCounterInputGen;
+use sm_accounts::{init::AccountsInitCounter, result::AccountsResultCounter};
 use sm_arith::ArithCounterInputGen;
 use sm_binary::BinaryCounter;
 use sm_main::MainCounter;
@@ -40,6 +41,9 @@ pub struct StaticDataBus<D> {
     pub sha256f_counter: Sha256fCounterInputGen,
     pub arith_eq_counter: ArithEqCounterInputGen,
 
+    pub accounts_init_counter: AccountsInitCounter,
+    pub accounts_result_counter: AccountsResultCounter,
+
     /// Queue of pending data transfers to be processed.
     pending_transfers: VecDeque<(BusId, Vec<D>)>,
 }
@@ -54,6 +58,8 @@ impl StaticDataBus<PayloadType> {
         keccakf_counter: KeccakfCounterInputGen,
         sha256f_counter: Sha256fCounterInputGen,
         arith_eq_counter: ArithEqCounterInputGen,
+        accounts_init_counter: AccountsInitCounter,
+        accounts_result_counter: AccountsResultCounter,
     ) -> Self {
         Self {
             process_only_operation_bus,
@@ -64,6 +70,8 @@ impl StaticDataBus<PayloadType> {
             keccakf_counter,
             sha256f_counter,
             arith_eq_counter,
+            accounts_init_counter,
+            accounts_result_counter,
             pending_transfers: VecDeque::new(),
         }
     }
@@ -84,6 +92,18 @@ impl StaticDataBus<PayloadType> {
             MEM_BUS_ID => {
                 let mut _continue = true;
                 if !self.process_only_operation_bus {
+                    _continue &= self.accounts_init_counter.process_data(
+                        &bus_id,
+                        payload,
+                        &mut self.pending_transfers
+                    );
+
+                    _continue &= self.accounts_result_counter.process_data(
+                        &bus_id,
+                        payload,
+                        &mut self.pending_transfers
+                    );
+                    //
                     // If we are not processing only operation bus, we process memory bus data.
                     _continue &= self.mem_counter.process_data(
                         &bus_id,
@@ -162,6 +182,7 @@ impl DataBusTrait<PayloadType, Box<dyn BusDeviceMetrics>> for StaticDataBus<Payl
             sha256f_counter,
             arith_eq_counter,
             pending_transfers: _,
+            ..
         } = self;
 
         #[allow(clippy::type_complexity)]
@@ -174,6 +195,8 @@ impl DataBusTrait<PayloadType, Box<dyn BusDeviceMetrics>> for StaticDataBus<Payl
             (None, Some(Box::new(keccakf_counter))),
             (None, Some(Box::new(sha256f_counter))),
             (None, Some(Box::new(arith_eq_counter))),
+            (None, None),
+            (None, None)
         ];
 
         counters
