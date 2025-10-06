@@ -62,7 +62,8 @@ const BASE_REG: u64 = 4;
 const STORE_REG: u64 = BASE_REG + 12;
 const SCRATCH_REG: u64 = STORE_REG + 12;
 const SCRATCH_REG2: u64 = SCRATCH_REG + 1;
-const TRANSPILE_ALIGN: i32 = 16;
+const CU_METER_REG: u64 = SCRATCH_REG2 + 1;
+const TRANSPILE_ALIGN: i32 = 18;
 
 #[derive(Clone, Serialize, Deserialize)]
 struct AccountInventoryItem {
@@ -945,6 +946,52 @@ impl ZiskRom {
         }
     }
 
+    fn wrap_sync_sys_regs(pc: u64, insts: Vec<ZiskInst>, sync_cu: bool) -> Vec<ZiskInst>  {
+        let mut result = vec![
+            // set pc for bpf
+            {
+                let mut builder = ZiskInstBuilder::new(pc);
+                builder.src_a("imm", pc, false);
+                builder.src_b("imm", pc, false);
+                builder.op("copyb").unwrap();
+                builder.store("reg", ireg_for_bpf_reg(11), false, false);
+                builder.j(1, 1);
+                builder.i
+            },
+            // HERE We have totally synced registers with solana
+        ];
+
+        if sync_cu {
+            result.push(
+                // decrease cu
+                {
+                    let mut builder = ZiskInstBuilder::new(pc);
+                    builder.src_a("reg", CU_METER_REG, false);
+                    builder.src_b("imm", 1_u64, false);
+                    builder.store("reg", CU_METER_REG as i64, false, false);
+                    builder.op("sub").unwrap();
+                    builder.j(1, 1);
+                    builder.i
+                },
+            );
+        }
+
+        result.extend(insts.into_iter().map(|x| {
+            let mut inst = x;
+            inst.paddr += 2;
+            if inst.jmp_offset1.abs() >= TRANSPILE_ALIGN.into() {
+                inst.jmp_offset1 -= 2;
+            }
+            if inst.jmp_offset2.abs() >= TRANSPILE_ALIGN.into() {
+                inst.jmp_offset2 -= 2;
+            }
+
+            inst
+        }));
+
+        result
+    }
+
     // generates 15 instructions
     fn gen_push_frame(pc: u64, ret_pc: u64, gen_jump: impl Fn(u64) -> ZiskInst) -> Vec<ZiskInst> {
         // 12 bpf registers + pc
@@ -1050,7 +1097,8 @@ impl ZiskRom {
             let line = (zisk_pc - ROM_ADDR) / align;
             let index = (zisk_pc - ROM_ADDR) % align;
 
-            if index == 0 {
+            // after pc sync
+            if index == 1 {
                 Some(line)
             } else {
                 None
@@ -1070,8 +1118,8 @@ impl ZiskRom {
             call_map.insert(key as u64, sys_pc + pc as u64 * TRANSPILE_ALIGN as u64);
         }
 
-        let sys_translate_pc_routine = ROM_ENTRY + 2 * TRANSPILE_ALIGN as u64;
-        let user_translate_pc_routine = ROM_ENTRY + 2 * TRANSPILE_ALIGN as u64;
+        let sys_translate_pc_routine = ROM_ENTRY + 3 * TRANSPILE_ALIGN as u64;
+        let user_translate_pc_routine = ROM_ENTRY + 4 * TRANSPILE_ALIGN as u64;
 
         let mut system_instructions = vec![
             Self::gen_push_frame(
@@ -1151,15 +1199,21 @@ impl ZiskRom {
         ];
 
         system_instructions = system_instructions.into_iter()
-            .chain(bios.all_lines.as_slice().iter().map(|op| 
-                    Self::transpile_op(&op, sys_pc + op.ptr as u64 * TRANSPILE_ALIGN as u64, sys_translate_pc_routine, &bios.sbpf_version, &call_map)))
-            .collect();
+            .chain(bios.all_lines.as_slice().iter().map(|op| {
+                let pc = sys_pc + op.ptr as u64 * TRANSPILE_ALIGN as u64;
+                let insts = Self::transpile_op(&op, pc, sys_translate_pc_routine, &bios.sbpf_version, &call_map);
+                Self::wrap_sync_sys_regs(pc, insts, false)
+            })).collect();
 
         for (key, (_symbol, pc)) in program.function_registry.iter() {
             call_map.insert(key as u64, ROM_ADDR + pc as u64 * TRANSPILE_ALIGN as u64);
         }
-        let transpiled_instructions = program.all_lines.as_slice().iter().map(|op| 
-            Self::transpile_op(op, ROM_ADDR + op.ptr as u64 * TRANSPILE_ALIGN as u64, user_translate_pc_routine, &program.sbpf_version, &call_map)).collect();
+
+        let transpiled_instructions = program.all_lines.as_slice().iter().map(|op| {
+            let pc = ROM_ADDR + op.ptr as u64 * TRANSPILE_ALIGN as u64;
+            let insts = Self::transpile_op(op, pc, user_translate_pc_routine, &program.sbpf_version, &call_map);
+            Self::wrap_sync_sys_regs(pc, insts, true)
+        }).collect();
 
         Self {
             key,
