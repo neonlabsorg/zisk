@@ -33,7 +33,7 @@ impl BuildToolchainCmd {
                         repo_url,
                         "--depth=1",
                         "--single-branch",
-                        "--branch=ltx-zisk-rust-1.89.0",
+                        "--branch=ltx-zisk",
                         "zisk-rust",
                     ])
                     .current_dir(&temp_dir)
