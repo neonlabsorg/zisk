@@ -1,54 +1,50 @@
 use std::sync::Arc;
 
-#[cfg(feature = "debug_mem")]
-use num_bigint::ToBigInt;
-#[cfg(feature = "debug_mem")]
-use std::{
-    fs::File,
-    io::{BufWriter, Write},
-};
-use zisk_common::SegmentId;
-
-use crate::{
-    MemInput, MemModule, MEM_BYTES_BITS, MEM_INC_C_BITS, MEM_INC_C_MASK, MEM_INC_C_MAX_RANGE,
-    MEM_INC_C_SIZE,
-};
 use fields::PrimeField64;
 use pil_std_lib::Std;
-use proofman_common::{AirInstance, FromTrace};
+use proofman_common::AirInstance;
+use sbpf_parser::mem::TxInput;
+use zisk_common::SegmentId;
+use zisk_core::{ACCOUNTS_ADDR, ACCOUNTS_SIZE};
+use zisk_pil::{AccountDataAirValues, AccountDataTrace};
 
-use zisk_core::{RAM_ADDR, RAM_SIZE};
-use zisk_pil::{MemAirValues, MemTrace};
+use crate::{mem_inputs::MemInput, mem_module::MemModule, mem_sm::MemPreviousSegment, MEM_BYTES_BITS, MEM_INC_C_BITS, MEM_INC_C_MASK, MEM_INC_C_MAX_RANGE, MEM_INC_C_SIZE};
 
-pub const RAM_W_ADDR_INIT: u64 = RAM_ADDR >> MEM_BYTES_BITS;
-pub const RAM_W_ADDR_END: u64 = (RAM_ADDR + RAM_SIZE - 1) >> MEM_BYTES_BITS;
+pub const ACCOUNTS_W_ADDR_INIT: u64 = ACCOUNTS_ADDR as u64 >> MEM_BYTES_BITS;
+pub const ACCOUNTS_W_ADDR_END: u64 = (ACCOUNTS_ADDR + ACCOUNTS_SIZE - 1) as u64 >> MEM_BYTES_BITS;
 
-const _: () = {
-    assert!(
-        (RAM_SIZE) <= 0xFFFF_FFFF,
-        "RAM memory exceeds the 32-bit addressable range"
-    );
-};
+#[derive(Clone)]
+pub struct MemInitValuesSlot {
+    slot: Arc<std::sync::RwLock<Option<Arc<TxInput>>>>
+}
 
-pub struct MemSM<F: PrimeField64> {
+impl MemInitValuesSlot {
+    pub fn new() -> Self {
+        Self {
+            slot: Arc::new(None.into())
+        }
+    }
+
+    pub fn provide(&self, input: Arc<TxInput>) {
+        *self.slot.write().unwrap() = Some(input);
+    }
+}
+
+pub struct AccountDataMemSM<F: PrimeField64> {
     /// PIL2 standard library
     std: Arc<Std<F>>,
-}
-#[derive(Debug, Default)]
-pub struct MemPreviousSegment {
-    pub addr: u64,
-    pub step: u64,
-    pub value: u64,
+    init_values_slot: MemInitValuesSlot,
 }
 
+
 #[allow(unused, unused_variables)]
-impl<F: PrimeField64> MemSM<F> {
-    pub fn new(std: Arc<Std<F>>) -> Arc<Self> {
-        Arc::new(Self { std: std.clone() })
+impl<F: PrimeField64> AccountDataMemSM<F> {
+    pub fn new(std: Arc<Std<F>>, slot: MemInitValuesSlot) -> Arc<Self> {
+        Arc::new(Self { std: std.clone(), init_values_slot: slot })
     }
 
     pub fn get_to_addr() -> u32 {
-        (RAM_ADDR + RAM_SIZE - 1) as u32
+        (ACCOUNTS_ADDR + ACCOUNTS_SIZE - 1) as u32
     }
     #[cfg(feature = "debug_mem")]
     pub fn save_to_file(&self, trace: &MemTrace<F>, file_name: &str) {
@@ -71,9 +67,9 @@ impl<F: PrimeField64> MemSM<F> {
     }
 }
 
-impl<F: PrimeField64> MemModule<F> for MemSM<F> {
+impl<F: PrimeField64> MemModule<F> for AccountDataMemSM<F> {
     fn get_addr_range(&self) -> (u64, u64) {
-        (RAM_W_ADDR_INIT, RAM_W_ADDR_END)
+        (ACCOUNTS_W_ADDR_INIT, ACCOUNTS_W_ADDR_END)
     }
     /// Finalizes the witness accumulation process and triggers the proof generation.
     ///
@@ -90,10 +86,10 @@ impl<F: PrimeField64> MemModule<F> for MemSM<F> {
         previous_segment: &MemPreviousSegment,
         trace_buffer: Vec<F>,
     ) -> AirInstance<F> {
-        let mut trace = MemTrace::<F>::new_from_vec(trace_buffer);
+        let mut trace = AccountDataTrace::<F>::new_from_vec(trace_buffer);
 
         // println!(
-        //     "[MemSM] segment_id:{} mem_ops:{} rows:{}  [0]{:?} previous_segment:{:?}",
+        //     "[AccountDataMemSm] segment_id:{} mem_ops:{} rows:{}  [0]{:?} previous_segment:{:?}",
         //     segment_id,
         //     mem_ops.len(),
         //     trace.num_rows,
@@ -107,12 +103,15 @@ impl<F: PrimeField64> MemModule<F> for MemSM<F> {
         let mut range_check_data: Vec<u32> = vec![0; MEM_INC_C_SIZE];
 
         // use special counter for internal reads
-        let distance_base = previous_segment.addr - RAM_W_ADDR_INIT;
+        let distance_base = previous_segment.addr - ACCOUNTS_W_ADDR_INIT;
         let mut last_addr = previous_segment.addr;
         let mut last_step = previous_segment.step;
         let mut last_value = previous_segment.value;
 
         let mut i = 0;
+
+        let init_values_guard = self.init_values_slot.slot.read().unwrap();
+        let init_values = init_values_guard.as_ref().unwrap();
 
         for mem_op in mem_ops {
             let step = mem_op.step;
@@ -131,7 +130,7 @@ impl<F: PrimeField64> MemModule<F> for MemSM<F> {
             } else {
                 if step < last_step {
                     panic!(
-                        "MemSM: step < last_step {} < {} addr_changes:{} mem_op.addr:0x{:X} last_addr:0x{:X} mem_op.step:{} last_step:{} row:{} previous:{:?}",
+                        "AccountDataMemSm: step < last_step {} < {} addr_changes:{} mem_op.addr:0x{:X} last_addr:0x{:X} mem_op.step:{} last_step:{} row:{} previous:{:?}",
                         step, last_step, addr_changes as u8, mem_op.addr * 8, last_addr * 8, mem_op.step, last_step, i, previous_segment
                     );
                 }
@@ -144,6 +143,11 @@ impl<F: PrimeField64> MemModule<F> for MemSM<F> {
             // set specific values of trace for regular memory operation
             let (low_val, high_val) = (mem_op.value as u32, (mem_op.value >> 32) as u32);
             trace[i].value = [F::from_u32(low_val), F::from_u32(high_val)];
+
+            let init_vals = init_values.read(mem_op.addr).unwrap_or(0);
+            let init_vals: [u32; 2] = [init_vals as u32, (init_vals >> 32) as u32];
+            trace[i].init_val = init_vals.map(F::from_u32); 
+
 
             trace[i].step = F::from_u64(step);
             trace[i].sel = F::ONE;
@@ -166,7 +170,7 @@ impl<F: PrimeField64> MemModule<F> for MemSM<F> {
 
             #[cfg(feature = "debug_mem")]
             if (lsb_increment >= MEM_INC_C_SIZE) || (msb_increment > MEM_INC_C_SIZE) {
-                panic!("MemSM: increment's out of range: {} i:{} addr_changes:{} mem_op.addr:0x{:X} last_addr:0x{:X} mem_op.step:{} last_step:{}",
+                panic!("AccountDataMemSm: increment's out of range: {} i:{} addr_changes:{} mem_op.addr:0x{:X} last_addr:0x{:X} mem_op.step:{} last_step:{}",
                     increment, i, addr_changes as u8, mem_op.addr, last_addr, mem_op.step, last_step);
             }
 
@@ -209,15 +213,15 @@ impl<F: PrimeField64> MemModule<F> for MemSM<F> {
         }
 
         // no add extra +1 because index = value - 1
-        // RAM_W_ADDR_END - last_addr + 1 - 1 = RAM_W_ADDR_END - last_addr
-        let distance_end = RAM_W_ADDR_END - last_addr;
+        // ACCOUNTS_W_ADDR_END - last_addr + 1 - 1 = RAM_W_ADDR_END - last_addr
+        let distance_end = ACCOUNTS_W_ADDR_END - last_addr;
 
         self.std.range_checks(range_check_data, range_id);
 
         // Add one in range_check_data_max because it's used by intermediate reads, and reads
         // add one to distance to allow same step on read operations.
 
-        let mut air_values = MemAirValues::<F>::new();
+        let mut air_values = AccountDataAirValues::<F>::new();
         air_values.segment_id = F::from_usize(segment_id.into());
         air_values.is_first_segment = F::from_bool(segment_id == 0);
         air_values.is_last_segment = F::from_bool(is_last_segment);
@@ -255,6 +259,6 @@ impl<F: PrimeField64> MemModule<F> for MemSM<F> {
             self.save_to_file(&trace, &format!("/tmp/mem_trace_{}.txt", segment_id));
             println!("[Mem:{}] mem_ops:{} padding:{}", segment_id, mem_ops.len(), padding_size);
         }
-        AirInstance::new_from_trace(FromTrace::new(&mut trace).with_air_values(&mut air_values))
+        AirInstance::new_from_trace(proofman_common::FromTrace::new(&mut trace).with_air_values(&mut air_values))
     }
 }

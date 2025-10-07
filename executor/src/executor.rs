@@ -25,6 +25,7 @@ use proofman_common::{create_pool, BufferPool, PreCalculate, ProofCtx, SetupCtx}
 use proofman_util::{timer_start_info, timer_stop_and_log_info};
 use rom_setup::{gen_elf_hash, gen_rom_hash};
 use sm_accounts::AccountsSMBundle;
+use sm_mem::MemInitValuesSlot;
 use witness::WitnessComponent;
 
 use rayon::prelude::*;
@@ -141,6 +142,7 @@ pub struct ZiskExecutor<F: PrimeField64, BD: SMBundle<F>> {
     /// This is used to unlock the memory map for the ROM file.
     unlock_mapped_memory: bool,
 
+    mem_init_slot: MemInitValuesSlot,
     acc_sms: AccountsSMBundle<F>,
     accs: Vec<(solana_pubkey::Pubkey, solana_account::Account)>
 }
@@ -163,6 +165,7 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
         local_rank: i32,
         base_port: Option<u16>,
         unlock_mapped_memory: bool,
+        mem_init_slot: MemInitValuesSlot,
         acc_sms: AccountsSMBundle<F>,
         accs: Vec<(solana_pubkey::Pubkey, solana_account::Account)>
     ) -> Self {
@@ -183,6 +186,7 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
             local_rank,
             base_port,
             unlock_mapped_memory,
+            mem_init_slot,
             acc_sms,
             accs
         }
@@ -235,6 +239,7 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
             &self.zisk_rom,
             &input_data,
             &emu_options,
+            &self.mem_init_slot
             &self.acc_sms,
             self.accs.as_slice()
         )

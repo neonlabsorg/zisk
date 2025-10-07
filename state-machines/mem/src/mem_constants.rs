@@ -1,7 +1,7 @@
-pub const MEM_BYTES_BITS: u32 = 3;
-pub const MEM_BYTES: u32 = 1 << MEM_BYTES_BITS;
-pub const MEM_ADDR_ALIGN_MASK: u32 = MEM_BYTES - 1;
-pub const MEM_ADDR_MASK: u32 = 0xFFFF_FFF8;
+pub const MEM_BYTES_BITS: u64 = 3;
+pub const MEM_BYTES: u64 = 1 << MEM_BYTES_BITS;
+pub const MEM_ADDR_ALIGN_MASK: u64 = MEM_BYTES - 1;
+pub const MEM_ADDR_MASK: u64 = 0xFFFF_FFF8;
 
 pub const MEM_STEP_BASE: u64 = 1;
 pub const MAX_MEM_STEP_OFFSET: u64 = 2;

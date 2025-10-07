@@ -13,7 +13,7 @@ use mollusk_svm::Mollusk;
 use crate::{EmuContext, EmuFullTraceStep, EmuOptions, EmuRegTrace, ParEmuOptions};
 use fields::PrimeField64;
 use riscv::RiscVRegisters;
-use sm_mem::MemHelpers;
+use sm_mem::{MemHelpers, MemInitValuesSlot};
 use zisk_common::{
     OperationBusData, RomBusData, MAX_OPERATION_DATA_SIZE, MEM_BUS_ID, OPERATION_BUS_ID, ROM_BUS_ID,
 };
@@ -335,7 +335,7 @@ impl<'a> Emu<'a> {
                     self.ctx.inst_ctx.a = mem_reads[*mem_reads_index];
                     *mem_reads_index += 1;
                     let payload = self.mem_helpers.mem_load(
-                        address as u32,
+                        address,
                         self.ctx.inst_ctx.step,
                         0,
                         8,
@@ -355,7 +355,7 @@ impl<'a> Emu<'a> {
                     self.ctx.inst_ctx.a =
                         Mem::get_double_not_aligned_data(address, 8, raw_data_1, raw_data_2);
                     let payload = self.mem_helpers.mem_load(
-                        address as u32,
+                        address,
                         self.ctx.inst_ctx.step,
                         0,
                         8,
@@ -743,7 +743,7 @@ impl<'a> Emu<'a> {
 
                     *mem_reads_index += 1;
                     let payload = self.mem_helpers.mem_load(
-                        address as u32,
+                        address,
                         self.ctx.inst_ctx.step,
                         1,
                         8,
@@ -760,7 +760,7 @@ impl<'a> Emu<'a> {
                         self.ctx.inst_ctx.b =
                             Mem::get_single_not_aligned_data(address, 8, raw_data);
                         let payload = self.mem_helpers.mem_load(
-                            address as u32,
+                            address,
                             self.ctx.inst_ctx.step,
                             1,
                             8,
@@ -777,7 +777,7 @@ impl<'a> Emu<'a> {
                         self.ctx.inst_ctx.b =
                             Mem::get_double_not_aligned_data(address, 8, raw_data_1, raw_data_2);
                         let payload = self.mem_helpers.mem_load(
-                            address as u32,
+                            address,
                             self.ctx.inst_ctx.step,
                             1,
                             8,
@@ -812,7 +812,7 @@ impl<'a> Emu<'a> {
                     self.ctx.inst_ctx.b = mem_reads[*mem_reads_index];
                     *mem_reads_index += 1;
                     let payload = self.mem_helpers.mem_load(
-                        address as u32,
+                        address,
                         self.ctx.inst_ctx.step,
                         1,
                         8,
@@ -832,7 +832,7 @@ impl<'a> Emu<'a> {
                             raw_data,
                         );
                         let payload = self.mem_helpers.mem_load(
-                            address as u32,
+                            address,
                             self.ctx.inst_ctx.step,
                             1,
                             instruction.ind_width as u8,
@@ -853,7 +853,7 @@ impl<'a> Emu<'a> {
                             raw_data_2,
                         );
                         let payload = self.mem_helpers.mem_load(
-                            address as u32,
+                            address,
                             self.ctx.inst_ctx.step,
                             1,
                             8,
@@ -1251,7 +1251,7 @@ impl<'a> Emu<'a> {
 
                 if Mem::is_full_aligned(address, 8) {
                     let payload = self.mem_helpers.mem_write(
-                        address as u32,
+                        address,
                         self.ctx.inst_ctx.step,
                         2,
                         8,
@@ -1270,7 +1270,7 @@ impl<'a> Emu<'a> {
                         *mem_reads_index += 1;
 
                         let payload = self.mem_helpers.mem_write(
-                            address as u32,
+                            address,
                             self.ctx.inst_ctx.step,
                             2,
                             8,
@@ -1287,7 +1287,7 @@ impl<'a> Emu<'a> {
                         *mem_reads_index += 1;
 
                         let payload = self.mem_helpers.mem_write(
-                            address as u32,
+                            address,
                             self.ctx.inst_ctx.step,
                             2,
                             8,
@@ -1314,7 +1314,7 @@ impl<'a> Emu<'a> {
                 // Otherwise, if aligned
                 if Mem::is_full_aligned(address, instruction.ind_width) {
                     let payload = self.mem_helpers.mem_write(
-                        address as u32,
+                        address,
                         self.ctx.inst_ctx.step,
                         2,
                         instruction.ind_width as u8,
@@ -1333,7 +1333,7 @@ impl<'a> Emu<'a> {
                         *mem_reads_index += 1;
 
                         let payload = self.mem_helpers.mem_write(
-                            address as u32,
+                            address,
                             self.ctx.inst_ctx.step,
                             2,
                             instruction.ind_width as u8,
@@ -1350,7 +1350,7 @@ impl<'a> Emu<'a> {
                         *mem_reads_index += 1;
 
                         let payload = self.mem_helpers.mem_write(
-                            address as u32,
+                            address,
                             self.ctx.inst_ctx.step,
                             2,
                             instruction.ind_width as u8,
@@ -1536,6 +1536,7 @@ impl<'a> Emu<'a> {
         inputs: Vec<u8>,
         options: &EmuOptions,
         par_options: &ParEmuOptions,
+        mem_init_slot: &MemInitValuesSlot,
         accounts_sm: &AccountsSMBundle<F>,
         accounts: &[(Pubkey, solana_account::Account)]
     ) -> Result<Vec<EmuTrace>, EmulationError> {
@@ -1552,6 +1553,7 @@ impl<'a> Emu<'a> {
             str::from_utf8(inputs.as_slice()).expect("broken utf8 in instruction")).expect("instruction decoding failed");
 
         let init_state = Arc::new(TxInput::new_with_defaults(&instruction, accounts).map_err(EmulationError::InstructionError)?);
+        mem_init_slot.provide(init_state.clone());
 
         let full_trace = InstructionTraceBuilder::build(&mut runner, &instruction, accounts)?;
         assert!(full_trace.frames.len() == 1);

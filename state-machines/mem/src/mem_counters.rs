@@ -17,8 +17,8 @@ use zisk_common::{BusDevice, BusId, MemBusData, Metrics, MEM_BUS_DATA_SIZE, MEM_
 
 #[derive(Default)]
 pub struct MemCounters {
-    pub addr: HashMap<u32, u32>,
-    pub addr_sorted: [Vec<(u32, u32)>; 3],
+    pub addr: HashMap<u64, u32>,
+    pub addr_sorted: [Vec<(u64, u32)>; 3],
     pub mem_align: Vec<u8>,
     pub mem_align_rows: u32,
     pub file: Option<File>,
@@ -58,14 +58,14 @@ impl MemCounters {
 
     pub fn close(&mut self) {
         // address must be ordered
-        let mut addr_vector: Vec<(u32, u32)> = std::mem::take(&mut self.addr).into_iter().collect();
+        let mut addr_vector: Vec<(u64, u32)> = std::mem::take(&mut self.addr).into_iter().collect();
         addr_vector.par_sort_by_key(|(key, _)| *key);
 
         // Divideix el vector original en tres parts
-        let point = addr_vector.partition_point(|x| x.0 < (0xA000_0000 / 8));
+        let point = addr_vector.partition_point(|x| x.0 < (0xA0000_0000 / 8));
         self.addr_sorted[2] = addr_vector.split_off(point);
 
-        let point = addr_vector.partition_point(|x| x.0 < (0x9000_0000 / 8));
+        let point = addr_vector.partition_point(|x| x.0 < (0x90000_0000 / 8));
         self.addr_sorted[1] = addr_vector.split_off(point);
 
         self.addr_sorted[0] = addr_vector;
@@ -80,12 +80,12 @@ impl MemCounters {
             self.addr.entry(addr_w).and_modify(|count| *count += 1).or_insert(1);
         } else {
             let op = MemBusData::get_op(data);
-            let addr_count = if MemHelpers::is_double(addr, bytes) { 2 } else { 1 };
+            let addr_count: u32 = if MemHelpers::is_double(addr, bytes) { 2 } else { 1 };
             let ops_by_addr = if MemHelpers::is_write(op) { 2 } else { 1 };
 
             for index in 0..addr_count {
                 self.addr
-                    .entry(addr_w + index)
+                    .entry(addr_w + index as u64)
                     .and_modify(|count| *count += ops_by_addr)
                     .or_insert(ops_by_addr);
             }

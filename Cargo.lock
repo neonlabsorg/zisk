@@ -1586,7 +1586,6 @@ dependencies = [
  "data-bus",
  "fields",
  "itertools 0.14.0",
- "mem-planner-cpp",
  "mollusk-svm",
  "pil-std-lib",
  "proofman",
@@ -1597,6 +1596,7 @@ dependencies = [
  "sbpf-parser",
  "sm-accounts",
  "sm-main",
+ "sm-mem",
  "solana-account",
  "solana-pubkey",
  "svm-tracer",
@@ -2638,18 +2638,6 @@ dependencies = [
  "witness",
  "zisk-common",
  "zisk-core",
- "zisk-pil",
-]
-
-[[package]]
-name = "mem-planner-cpp"
-version = "0.10.0"
-dependencies = [
- "mem-common",
- "proofman-common",
- "proofman-util",
- "tracing",
- "zisk-common",
  "zisk-pil",
 ]
 
@@ -4424,7 +4412,6 @@ version = "0.10.0"
 dependencies = [
  "fields",
  "mem-common",
- "mem-planner-cpp",
  "num-bigint 0.4.6",
  "num-traits",
  "pil-std-lib",
@@ -4433,6 +4420,7 @@ dependencies = [
  "proofman-macros",
  "proofman-util",
  "rayon",
+ "sbpf-parser",
  "tracing",
  "witness",
  "zisk-common",

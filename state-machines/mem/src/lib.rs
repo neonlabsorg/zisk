@@ -20,6 +20,9 @@ mod mem_planner;
 mod mem_sm;
 mod mem_test;
 mod rom_data_sm;
+mod accounts_data_sm;
+
+use std::sync::Arc;
 
 use input_data_sm::*;
 pub use mem::*;
@@ -38,3 +41,7 @@ use mem_module_planner::*;
 use mem_planner::*;
 use mem_sm::*;
 use rom_data_sm::*;
+pub use accounts_data_sm::MemInitValuesSlot;
+
+use sbpf_parser::mem::TxInput;
+

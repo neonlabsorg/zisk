@@ -27,6 +27,8 @@ mod mem_module_planner;
 pub use mem_module_planner::*;
 mod mem_counters_cursor;
 pub use mem_counters_cursor::*;
+mod accounts_data_sm;
+pub use accounts_data_sm::*;
 // mod mem_module_check_point;
 // pub use mem_module_check_point::*;
 // mod mem_ops;

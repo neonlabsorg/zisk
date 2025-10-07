@@ -8,11 +8,11 @@ use zisk_common::SegmentId;
 use zisk_core::{ROM_ADDR, ROM_ADDR_MAX};
 use zisk_pil::{RomDataAirValues, RomDataTrace};
 
-pub const ROM_DATA_W_ADDR_INIT: u32 = ROM_ADDR as u32 >> MEM_BYTES_BITS;
-pub const ROM_DATA_W_ADDR_END: u32 = ROM_ADDR_MAX as u32 >> MEM_BYTES_BITS;
+pub const ROM_DATA_W_ADDR_INIT: u64 = ROM_ADDR >> MEM_BYTES_BITS;
+pub const ROM_DATA_W_ADDR_END: u64 = ROM_ADDR_MAX >> MEM_BYTES_BITS;
 
 const _: () = {
-    assert!(ROM_ADDR_MAX <= 0xFFFF_FFFF, "ROM_DATA memory exceeds the 32-bit addressable range");
+    assert!(ROM_ADDR_MAX - ROM_ADDR <= 0xFFFF_FFFF, "ROM_DATA memory exceeds the 32-bit addressable range");
 };
 
 pub struct RomDataSM<F: PrimeField64> {
@@ -25,19 +25,19 @@ impl<F: PrimeField64> RomDataSM<F> {
     pub fn new(std: Arc<Std<F>>) -> Arc<Self> {
         Arc::new(Self { std: std.clone() })
     }
-    pub fn get_from_addr() -> u32 {
+    pub fn get_from_addr() -> u64 {
         ROM_DATA_W_ADDR_INIT
     }
     fn get_u32_values(&self, value: u64) -> (u32, u32) {
         (value as u32, (value >> 32) as u32)
     }
-    pub fn get_to_addr() -> u32 {
+    pub fn get_to_addr() -> u64 {
         ROM_DATA_W_ADDR_END
     }
 }
 
 impl<F: PrimeField64> MemModule<F> for RomDataSM<F> {
-    fn get_addr_range(&self) -> (u32, u32) {
+    fn get_addr_range(&self) -> (u64, u64) {
         (ROM_DATA_W_ADDR_INIT, ROM_DATA_W_ADDR_END)
     }
     /// Finalizes the witness accumulation process and triggers the proof generation.
@@ -69,7 +69,7 @@ impl<F: PrimeField64> MemModule<F> for RomDataSM<F> {
         self.std.range_check((previous_segment.addr - ROM_DATA_W_ADDR_INIT) as i64, 1, range_id);
 
         // Fill the remaining rows
-        let mut last_addr: u32 = previous_segment.addr;
+        let mut last_addr = previous_segment.addr;
         let mut last_step: u64 = previous_segment.step;
         let mut last_value: u64 = previous_segment.value;
 
@@ -101,12 +101,12 @@ impl<F: PrimeField64> MemModule<F> for RomDataSM<F> {
                 // check if has enough rows to complete the internal reads + regular memory
                 let incomplete = (i + internal_reads as usize) >= num_rows;
                 if incomplete {
-                    internal_reads = (num_rows - i) as u32;
+                    internal_reads = (num_rows - i) as u64;
                 }
 
                 trace[i].addr_changes = F::ONE;
                 last_addr += 1;
-                trace[i].addr = F::from_u32(last_addr);
+                trace[i].addr = F::from_u64(last_addr);
                 trace[i].value = [F::ZERO, F::ZERO];
                 trace[i].sel = F::ZERO;
                 // the step, value of internal reads isn't relevant
@@ -116,14 +116,14 @@ impl<F: PrimeField64> MemModule<F> for RomDataSM<F> {
                 for _j in 1..internal_reads {
                     trace[i] = trace[i - 1];
                     last_addr += 1;
-                    trace[i].addr = F::from_u32(last_addr);
+                    trace[i].addr = F::from_u64(last_addr);
                     i += 1;
                 }
                 if incomplete {
                     break;
                 }
             }
-            trace[i].addr = F::from_u32(mem_op.addr);
+            trace[i].addr = F::from_u64(mem_op.addr);
             trace[i].step = F::from_u64(mem_op.step);
             trace[i].sel = F::ONE;
 
@@ -161,8 +161,8 @@ impl<F: PrimeField64> MemModule<F> for RomDataSM<F> {
         air_values.is_first_segment = F::from_bool(segment_id == 0);
         air_values.is_last_segment = F::from_bool(is_last_segment);
         air_values.previous_segment_step = F::from_u64(previous_segment.step);
-        air_values.previous_segment_addr = F::from_u32(previous_segment.addr);
-        air_values.segment_last_addr = F::from_u32(last_addr);
+        air_values.previous_segment_addr = F::from_u64(previous_segment.addr);
+        air_values.segment_last_addr = F::from_u64(last_addr);
         air_values.segment_last_step = F::from_u64(last_step);
 
         air_values.previous_segment_value[0] = F::from_u32(previous_segment.value as u32);

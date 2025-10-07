@@ -15,7 +15,7 @@ use proofman::register_std;
 use sm_accounts::{init::AccountsInitSM, poseidon::PoseidonPermuter, AccountsSMBundle};
 use sm_arith::ArithSM;
 use sm_binary::BinarySM;
-use sm_mem::Mem;
+use sm_mem::{Mem, MemInitValuesSlot};
 use sm_rom::RomSM;
 use solana_pubkey::Pubkey;
 use zisk_core::ZiskRom;
@@ -90,7 +90,8 @@ impl<F: PrimeField64> WitnessLibrary<F> for WitnessLib<F> {
         let rom_sm = RomSM::new(zisk_rom.clone());
         let binary_sm = BinarySM::new(std.clone());
         let arith_sm = ArithSM::new();
-        let mem_sm = Mem::new(std.clone());
+        let mem_init_slot = MemInitValuesSlot::new();
+        let mem_sm = Mem::new(std.clone(), mem_init_slot.clone());
 
         // Step 4: Initialize the precompiles state machines
         let keccakf_sm = KeccakfManager::new(wcm.get_sctx());
@@ -132,6 +133,7 @@ impl<F: PrimeField64> WitnessLibrary<F> for WitnessLib<F> {
             self.local_rank,
             self.base_port,
             self.unlock_mapped_memory,
+            mem_init_slot,
             accounts_bundle.clone(),
             accounts
         );

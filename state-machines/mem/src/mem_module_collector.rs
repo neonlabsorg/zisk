@@ -12,7 +12,7 @@ pub struct MemModuleCollector {
     /// Collected inputs
     pub inputs: Vec<MemInput>,
     pub prev_segment: Option<MemPreviousSegment>,
-    pub min_addr: u32,
+    pub min_addr: u64,
     pub _segment_id: SegmentId,
     pub count: u32,
     pub to_count: u32,
@@ -23,7 +23,7 @@ pub struct MemModuleCollector {
 impl MemModuleCollector {
     pub fn new(
         mem_check_point: &MemModuleCheckPoint,
-        min_addr: u32,
+        min_addr: u64,
         segment_id: SegmentId,
         is_first_chunk_of_segment: bool,
     ) -> Self {
@@ -57,7 +57,7 @@ impl MemModuleCollector {
     ///
     /// # Returns
     /// `true` if the access should be discarded, `false` otherwise.
-    fn discart_addr_step(&mut self, addr_w: u32, step: u64, value: u64) -> bool {
+    fn discart_addr_step(&mut self, addr_w: u64, step: u64, value: u64) -> bool {
         // Check if the address is out of the range of the current checkpoint, or
         // out of memory area.
         if addr_w > self.mem_check_point.to_addr || addr_w < self.min_addr {

@@ -43,15 +43,15 @@ impl MemHelpers {
     }
 
     #[inline(always)]
-    pub fn is_aligned(addr: u32, width: u8) -> bool {
+    pub fn is_aligned(addr: u64, width: u8) -> bool {
         (addr & MEM_ADDR_ALIGN_MASK) == 0 && width == 8
     }
     #[inline(always)]
-    pub fn get_addr_w(addr: u32) -> u32 {
+    pub fn get_addr_w(addr: u64) -> u64 {
         addr >> MEM_BYTES_BITS
     }
     #[inline(always)]
-    pub fn get_addr(addr_w: u32) -> u32 {
+    pub fn get_addr(addr_w: u64) -> u64 {
         addr_w << MEM_BYTES_BITS
     }
     #[inline(always)]
@@ -63,15 +63,15 @@ impl MemHelpers {
         step + 1
     }
     #[inline(always)]
-    pub fn is_double(addr: u32, bytes: u8) -> bool {
-        (addr & MEM_ADDR_ALIGN_MASK) + bytes as u32 > 8
+    pub fn is_double(addr: u64, bytes: u8) -> bool {
+        (addr & MEM_ADDR_ALIGN_MASK) + bytes as u64 > 8
     }
     #[inline(always)]
     pub fn is_write(op: u8) -> bool {
         op == MEMORY_STORE_OP
     }
     #[inline(always)]
-    pub fn get_byte_offset(addr: u32) -> u8 {
+    pub fn get_byte_offset(addr: u64) -> u8 {
         (addr & MEM_ADDR_ALIGN_MASK) as u8
     }
 
@@ -95,7 +95,7 @@ impl MemHelpers {
     #[cfg(target_endian = "big")]
     compile_error!("This code requires a little-endian machine.");
 
-    pub fn get_write_values(addr: u32, bytes: u8, value: u64, read_values: [u64; 2]) -> [u64; 2] {
+    pub fn get_write_values(addr: u64, bytes: u8, value: u64, read_values: [u64; 2]) -> [u64; 2] {
         let is_double = Self::is_double(addr, bytes);
         let offset = Self::get_byte_offset(addr) * 8;
         let value = match bytes {
@@ -127,7 +127,7 @@ impl MemHelpers {
     #[cfg(target_endian = "big")]
     compile_error!("This code requires a little-endian machine.");
 
-    pub fn get_read_value(addr: u32, bytes: u8, read_values: [u64; 2]) -> u64 {
+    pub fn get_read_value(addr: u64, bytes: u8, read_values: [u64; 2]) -> u64 {
         let is_double = Self::is_double(addr, bytes);
         let offset = Self::get_byte_offset(addr) * 8;
         let mut value = read_values[0] >> offset;
@@ -142,16 +142,16 @@ impl MemHelpers {
             _ => panic!("Invalid bytes value"),
         }
     }
-    pub fn register_to_addr(register: u8) -> u32 {
-        ((RAM_ADDR + register as u64) * 8) as u32
+    pub fn register_to_addr(register: u8) -> u64 {
+        (RAM_ADDR + register as u64) * 8
     }
-    pub fn register_to_addr_w(register: u8) -> u32 {
-        RAM_W_ADDR_INIT + register as u32
+    pub fn register_to_addr_w(register: u8) -> u64 {
+        RAM_W_ADDR_INIT + register as u64
     }
     #[inline(always)]
     pub fn mem_load(
         &self,
-        addr: u32,
+        addr: u64,
         step: u64,
         step_offset: u8,
         bytes: u8,
@@ -159,7 +159,7 @@ impl MemHelpers {
     ) -> [u64; 7] {
         [
             MEMORY_LOAD_OP as u64,
-            addr as u64,
+            addr,
             self.main_step_to_mem_step(step, step_offset),
             bytes as u64,
             mem_values[0],
@@ -170,7 +170,7 @@ impl MemHelpers {
     #[inline(always)]
     pub fn mem_write(
         &self,
-        addr: u32,
+        addr: u64,
         step: u64,
         step_offset: u8,
         bytes: u8,
@@ -179,7 +179,7 @@ impl MemHelpers {
     ) -> [u64; 7] {
         [
             MEMORY_STORE_OP as u64,
-            addr as u64,
+            addr,
             self.main_step_to_mem_step(step, step_offset),
             bytes as u64,
             mem_values[0],

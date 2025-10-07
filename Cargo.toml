@@ -20,7 +20,6 @@ members = [
     "state-machines/binary",
     "state-machines/main",
     "state-machines/mem",
-    "state-machines/mem-cpp",
     "state-machines/rom",
     "witness-computation",
     "ziskos/entrypoint",

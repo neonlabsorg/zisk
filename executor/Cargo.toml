@@ -10,13 +10,13 @@ categories = { workspace = true }
 [dependencies]
 sm-main = { path = "../state-machines/main" }
 sm-accounts = { path = "../state-machines/accounts" }
+sm-mem = { path = "../state-machines/mem" }
 rom-setup = { path = "../rom-setup" }
 zisk-pil = { path = "../pil" }
 ziskemu = { path = "../emulator" }
 zisk-core = { path = "../core" }
 zisk-common = { path = "../common" }
 data-bus = { path = "../data-bus" }
-mem-planner-cpp = { path = "../state-machines/mem-cpp" }
 
 proofman = { workspace = true }
 proofman-common = { workspace = true }

@@ -20,6 +20,7 @@ use crate::{Emu, EmuOptions, ErrWrongArguments, ParEmuOptions, ZiskEmulatorErr};
 use data_bus::DataBusTrait;
 use fields::{Goldilocks, PrimeField, PrimeField64};
 use sm_accounts::AccountsSMBundle;
+use sm_mem::MemInitValuesSlot;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -50,6 +51,7 @@ impl ZiskEmulator {
         rom: &ZiskRom,
         inputs: &[u8],
         options: &EmuOptions,
+        mem_init_slot: &MemInitValuesSlot,
         accounts_sm: &AccountsSMBundle<F>,
         accounts: &[(solana_pubkey::Pubkey, solana_account::Account)]
     ) -> Result<Vec<EmuTrace>, ZiskEmulatorErr> {
@@ -60,7 +62,8 @@ impl ZiskEmulator {
         let mut emu = Emu::new(rom, options.chunk_size.unwrap());
 
         // I don't run any threads so it should be safe
-        emu.run_gen_trace(inputs.to_owned(), options, &par_emu_options, accounts_sm, accounts).map_err(ZiskEmulatorErr::SolanaEmulationError)
+        emu.run_gen_trace(inputs.to_owned(), options, &par_emu_options, mem_init_slot, accounts_sm, accounts)
+            .map_err(ZiskEmulatorErr::SolanaEmulationError)
     }
 
     /// COUNT phase

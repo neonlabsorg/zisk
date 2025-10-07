@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    InputDataSM, MemAlignInstance, MemAlignRomSM, MemAlignSM, MemCounters, MemModuleInstance,
-    MemPlanner, MemSM, RomDataSM,
+    accounts_data_sm::AccountDataMemSM, InputDataSM, MemAlignInstance, MemAlignRomSM, MemAlignSM, MemCounters, MemInitValuesSlot, MemModuleInstance, MemPlanner, MemSM, RomDataSM
 };
 use fields::PrimeField64;
 use pil_std_lib::Std;
@@ -12,7 +11,7 @@ use zisk_common::{
     MEM_BUS_ID,
 };
 use zisk_pil::{
-    InputDataTrace, MemAlignRomTrace, MemAlignTrace, MemTrace, RomDataTrace, ZiskProofValues,
+    AccountDataTrace, InputDataTrace, MemAlignRomTrace, MemAlignTrace, MemTrace, RomDataTrace, ZiskProofValues
 };
 
 pub struct Mem<F: PrimeField64> {
@@ -22,17 +21,19 @@ pub struct Mem<F: PrimeField64> {
     mem_align_rom_sm: Arc<MemAlignRomSM>,
     input_data_sm: Arc<InputDataSM<F>>,
     rom_data_sm: Arc<RomDataSM<F>>,
+    accounts_sm: Arc<AccountDataMemSM<F>>
 }
 
 impl<F: PrimeField64> Mem<F> {
-    pub fn new(std: Arc<Std<F>>) -> Arc<Self> {
+    pub fn new(std: Arc<Std<F>>, slot: MemInitValuesSlot) -> Arc<Self> {
         let mem_align_rom_sm = MemAlignRomSM::new();
         let mem_align_sm = MemAlignSM::new(std.clone(), mem_align_rom_sm.clone());
         let mem_sm = MemSM::new(std.clone());
         let input_data_sm = InputDataSM::new(std.clone());
         let rom_data_sm = RomDataSM::new(std.clone());
+        let accounts_sm = AccountDataMemSM::new(std.clone(), slot);
 
-        Arc::new(Self { mem_align_sm, mem_align_rom_sm, mem_sm, input_data_sm, rom_data_sm })
+        Arc::new(Self { mem_align_sm, mem_align_rom_sm, mem_sm, input_data_sm, rom_data_sm, accounts_sm })
     }
 
     pub fn build_mem_counter(&self) -> MemCounters {
@@ -73,6 +74,9 @@ impl<F: PrimeField64> ComponentBuilder<F> for Mem<F> {
             }
             InputDataTrace::<usize>::AIR_ID => {
                 Box::new(MemModuleInstance::new(self.input_data_sm.clone(), ictx))
+            }
+            AccountDataTrace::<usize>::AIR_ID => {
+                Box::new(MemModuleInstance::new(self.accounts_sm.clone(), ictx))
             }
             MemAlignTrace::<usize>::AIR_ID => {
                 Box::new(MemAlignInstance::new(self.mem_align_sm.clone(), ictx))

@@ -10,17 +10,17 @@ use zisk_common::{CheckPoint, SegmentId};
 use zisk_common::{BusDeviceMetrics, ChunkId, Metrics, Plan, Planner};
 
 use zisk_pil::{
-    InputDataTrace, MemTrace, RomDataTrace, INPUT_DATA_AIR_IDS, MEM_AIR_IDS, ROM_DATA_AIR_IDS,
-    ZISK_AIRGROUP_ID,
+    AccountDataTrace, InputDataTrace, MemTrace, RomDataTrace, ACCOUNT_DATA_AIR_IDS, INPUT_DATA_AIR_IDS, MEM_AIR_IDS, ROM_DATA_AIR_IDS, ZISK_AIRGROUP_ID
 };
 
 #[cfg(feature = "save_mem_bus_data")]
 use mem_common::{save_plans, MemAlignCheckPoint, MemModuleSegmentCheckPoint};
 
 use crate::{
-    MemAlignPlanner, MemCounters, MemModulePlanner, MemModulePlannerConfig, INPUT_DATA_W_ADDR_INIT,
-    RAM_W_ADDR_INIT, ROM_DATA_W_ADDR_INIT,
+    MemAlignPlanner, MemCounters, MemModulePlanner, MemModulePlannerConfig, INPUT_DATA_W_ADDR_INIT, RAM_W_ADDR_INIT, ROM_DATA_W_ADDR_INIT
 };
+
+use crate::accounts_data_sm::ACCOUNTS_W_ADDR_INIT;
 
 pub trait MemPlanCalculator {
     fn plan(&mut self);
@@ -46,11 +46,23 @@ impl MemPlanner {
         counters.par_sort_by_key(|(chunk_id, _)| *chunk_id);
         let counters = Arc::new(counters);
 
+        let accounts_data_planner = Arc::new(Mutex::new(MemModulePlanner::new(
+            MemModulePlannerConfig {
+                airgroup_id: ZISK_AIRGROUP_ID,
+                air_id: ACCOUNT_DATA_AIR_IDS[0],
+                addr_index: 2,
+                from_addr: ACCOUNTS_W_ADDR_INIT,
+                rows: AccountDataTrace::<usize>::NUM_ROWS as u32,
+                consecutive_addr: false,
+            },
+            counters.clone(),
+        )));
+
         let mem_planner = Arc::new(Mutex::new(MemModulePlanner::new(
             MemModulePlannerConfig {
                 airgroup_id: ZISK_AIRGROUP_ID,
                 air_id: MEM_AIR_IDS[0],
-                addr_index: 2,
+                addr_index: 1,
                 from_addr: RAM_W_ADDR_INIT,
                 rows: MemTrace::<usize>::NUM_ROWS as u32,
                 consecutive_addr: false,
@@ -74,13 +86,16 @@ impl MemPlanner {
             MemModulePlannerConfig {
                 airgroup_id: ZISK_AIRGROUP_ID,
                 air_id: INPUT_DATA_AIR_IDS[0],
-                addr_index: 1,
+                addr_index: 3,
                 from_addr: INPUT_DATA_W_ADDR_INIT,
                 rows: InputDataTrace::<usize>::NUM_ROWS as u32,
                 consecutive_addr: true,
             },
             counters.clone(),
         )));
+
+
+
         // let mut mem_align_planner = Arc::new(Mutex::new(MemAlignPlanner::new(counters.clone())));
         let mut mem_align_planner = MemAlignPlanner::new(counters.clone());
 
@@ -88,6 +103,7 @@ impl MemPlanner {
             Arc::clone(&mem_planner),
             Arc::clone(&rom_data_planner),
             Arc::clone(&input_data_planner),
+            Arc::clone(&accounts_data_planner)
         ];
 
         planners.par_iter().for_each(|plan| {
