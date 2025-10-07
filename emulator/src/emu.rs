@@ -3,17 +3,14 @@ use std::sync::Arc;
 use std::{mem, slice};
 
 use sbpf_parser::mem::TxInput;
-use sm_accounts::AccountsSMBundle;
 use solana_pubkey::Pubkey;
-use solana_sdk::instruction::InstructionError;
 use svm_tracer::error::EmulationError;
 use svm_tracer::InstructionTraceBuilder;
-use mollusk_svm::Mollusk;
 
 use crate::{EmuContext, EmuFullTraceStep, EmuOptions, EmuRegTrace, ParEmuOptions};
 use fields::PrimeField64;
 use riscv::RiscVRegisters;
-use sm_mem::{MemHelpers, MemInitValuesSlot};
+use sm_mem::MemHelpers;
 use zisk_common::{
     OperationBusData, RomBusData, MAX_OPERATION_DATA_SIZE, MEM_BUS_ID, OPERATION_BUS_ID, ROM_BUS_ID,
 };
@@ -1531,15 +1528,13 @@ impl<'a> Emu<'a> {
     }
 
     /// Run the whole program
-    pub fn run_gen_trace<F: PrimeField64>(
+    pub fn run_gen_trace(
         &mut self,
         inputs: Vec<u8>,
         options: &EmuOptions,
         par_options: &ParEmuOptions,
-        mem_init_slot: &MemInitValuesSlot,
-        accounts_sm: &AccountsSMBundle<F>,
         accounts: &[(Pubkey, solana_account::Account)]
-    ) -> Result<Vec<EmuTrace>, EmulationError> {
+    ) -> Result<(Vec<EmuTrace>, (Arc<TxInput>, Arc<TxInput>)), EmulationError> {
         use solana_sdk::bpf_loader_upgradeable;
 
         let mut runner = mollusk_svm::Mollusk::default();
@@ -1553,14 +1548,11 @@ impl<'a> Emu<'a> {
             str::from_utf8(inputs.as_slice()).expect("broken utf8 in instruction")).expect("instruction decoding failed");
 
         let init_state = Arc::new(TxInput::new_with_defaults(&instruction, accounts).map_err(EmulationError::InstructionError)?);
-        mem_init_slot.provide(init_state.clone());
 
         let full_trace = InstructionTraceBuilder::build(&mut runner, &instruction, accounts)?;
         assert!(full_trace.frames.len() == 1);
 
         let final_state = Arc::new(TxInput::new_with_defaults(&instruction, &full_trace.result.resulting_accounts).map_err(EmulationError::InstructionError)?);
-
-        accounts_sm.initialize(init_state, final_state);
 
         // Context, where the state of the execution is stored and modified at every execution step
         self.ctx = EmuContext::new_empty();
@@ -1624,7 +1616,7 @@ impl<'a> Emu<'a> {
             }
         }
 
-        Ok(emu_traces)
+        Ok((emu_traces, (init_state, final_state)))
     }
 
     /// Performs one single step of the emulation

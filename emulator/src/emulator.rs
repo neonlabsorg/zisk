@@ -19,12 +19,9 @@ use crate::{Emu, EmuOptions, ErrWrongArguments, ParEmuOptions, ZiskEmulatorErr};
 
 use data_bus::DataBusTrait;
 use fields::{Goldilocks, PrimeField, PrimeField64};
-use sm_accounts::AccountsSMBundle;
-use sm_mem::MemInitValuesSlot;
+use sbpf_parser::mem::TxInput;
 use std::{
-    fs,
-    path::{Path, PathBuf},
-    time::Instant,
+    fs, path::{Path, PathBuf}, sync::Arc, time::Instant
 };
 use sysinfo::System;
 use zisk_common::EmuTrace;
@@ -47,14 +44,12 @@ impl ZiskEmulator {
     /// First phase of the witness computation
     /// 8 threads in waterfall (# threads to be re-calibrated after memory reads refactor)
     /// Must be fast
-    pub fn compute_minimal_traces<F: PrimeField64>(
+    pub fn compute_minimal_traces(
         rom: &ZiskRom,
         inputs: &[u8],
         options: &EmuOptions,
-        mem_init_slot: &MemInitValuesSlot,
-        accounts_sm: &AccountsSMBundle<F>,
         accounts: &[(solana_pubkey::Pubkey, solana_account::Account)]
-    ) -> Result<Vec<EmuTrace>, ZiskEmulatorErr> {
+    ) -> Result<(Vec<EmuTrace>, (Arc<TxInput>, Arc<TxInput>)), ZiskEmulatorErr> {
         let par_emu_options =
             ParEmuOptions::new(1, 0, options.chunk_size.unwrap() as usize);
 
@@ -62,8 +57,7 @@ impl ZiskEmulator {
         let mut emu = Emu::new(rom, options.chunk_size.unwrap());
 
         // I don't run any threads so it should be safe
-        emu.run_gen_trace(inputs.to_owned(), options, &par_emu_options, mem_init_slot, accounts_sm, accounts)
-            .map_err(ZiskEmulatorErr::SolanaEmulationError)
+        emu.run_gen_trace(inputs.to_owned(), options, &par_emu_options, accounts).map_err(ZiskEmulatorErr::SolanaEmulationError)
     }
 
     /// COUNT phase

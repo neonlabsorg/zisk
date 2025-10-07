@@ -235,15 +235,16 @@ impl<F: PrimeField64, BD: SMBundle<F>> ZiskExecutor<F, BD> {
             ..EmuOptions::default()
         };
 
-        let min_traces = ZiskEmulator::compute_minimal_traces(
+        let (min_traces, (init_mem, fin_mem)) = ZiskEmulator::compute_minimal_traces(
             &self.zisk_rom,
             &input_data,
             &emu_options,
-            &self.mem_init_slot
-            &self.acc_sms,
             self.accs.as_slice()
         )
         .expect("Error during emulator execution");
+
+        self.mem_init_slot.provide(init_mem.clone());
+        self.acc_sms.initialize(init_mem, fin_mem);
 
         min_traces
     }

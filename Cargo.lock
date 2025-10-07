@@ -7534,7 +7534,6 @@ dependencies = [
  "riscv",
  "sbpf-parser",
  "serde_json",
- "sm-accounts",
  "sm-mem",
  "solana-account",
  "solana-instruction",
