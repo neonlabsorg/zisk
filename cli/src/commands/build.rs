@@ -24,6 +24,8 @@ impl ZiskBuild {
         // Construct the cargo run command
         let mut command = Command::new("cargo");
         command.args(["+zisk", "build"]);
+
+        command.env("RUSTFLAGS", "--cfg target_os=\"solana\" --cfg getrandom_backend=\"custom\"");
         // Add the feature selection flags
         if let Some(features) = &self.features {
             command.arg("--features").arg(features);

@@ -27,13 +27,15 @@ impl BuildToolchainCmd {
                 println!("No ZISK_BUILD_DIR detected, cloning rust.");
                 let repo_url = "https://github.com/neonlabsorg/zisk-rust";
 
+                println!("Branch: ltx-zisk-mini");
+
                 Command::new("git")
                     .args([
                         "clone",
                         repo_url,
                         "--depth=1",
                         "--single-branch",
-                        "--branch=ltx-zisk",
+                        "--branch=ltx-zisk-mini",
                         "zisk-rust",
                     ])
                     .current_dir(&temp_dir)
@@ -67,10 +69,7 @@ impl BuildToolchainCmd {
         // Build the toolchain.
         Command::new("python3")
             .env("RUST_TARGET_PATH", &temp_dir)
-            .env(
-                "CARGO_TARGET_RISCV64IMA_ZISK_ZKVM_ELF_RUSTFLAGS",
-                "-Cpasses=lower-atomic --cfg target_os=\"solana\"",
-            )
+            .env("CARGO_TARGET_RISCV64IMA_ZISK_ZKVM_ELF_RUSTFLAGS", "-Cpasses=lower-atomic")
             .args([
                 "x.py",
                 "build",
