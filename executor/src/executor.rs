@@ -23,7 +23,7 @@ use fields::PrimeField64;
 use pil_std_lib::Std;
 use proofman_common::{create_pool, BufferPool, PreCalculate, ProofCtx, SetupCtx};
 use proofman_util::{timer_start_info, timer_stop_and_log_info};
-use rom_setup::{gen_elf_hash, gen_rom_hash};
+use rom_setup::gen_rom_hash;
 use sm_accounts::AccountsSMBundle;
 use sm_mem::MemInitValuesSlot;
 use witness::WitnessComponent;
@@ -37,10 +37,9 @@ use zisk_common::{
     BusDevice, BusDeviceMetrics, CheckPoint, ExecutorStats, Instance, InstanceCtx, InstanceType,
     Plan,
 };
-use zisk_common::{ChunkId, PayloadType};
+use zisk_common::ChunkId;
 use zisk_pil::{RomRomTrace, ZiskPublicValues, MAIN_AIR_IDS, ROM_AIR_IDS, ZISK_AIRGROUP_ID};
 
-use std::thread::JoinHandle;
 #[cfg(feature = "stats")]
 use std::time::Duration;
 use std::time::Instant;

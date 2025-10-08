@@ -15,20 +15,14 @@
 //!             Emu::run()
 //! ```
 
-use crate::{Emu, EmuOptions, ErrWrongArguments, ParEmuOptions, ZiskEmulatorErr};
+use crate::{Emu, EmuOptions, ParEmuOptions, ZiskEmulatorErr};
 
 use data_bus::DataBusTrait;
-use fields::{Goldilocks, PrimeField, PrimeField64};
+use fields::PrimeField;
 use sbpf_parser::mem::TxInput;
-use std::{
-    fs, path::{Path, PathBuf}, sync::Arc, time::Instant
-};
-use sysinfo::System;
+use std::sync::Arc;
 use zisk_common::EmuTrace;
 use zisk_core::ZiskRom;
-
-use svm_tracer::InstructionTraceBuilder;
-use mollusk_svm::Mollusk;
 
 pub trait Emulator {
     fn emulate(

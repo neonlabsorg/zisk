@@ -9,7 +9,6 @@ use svm_tracer::InstructionTraceBuilder;
 
 use crate::{EmuContext, EmuFullTraceStep, EmuOptions, EmuRegTrace, ParEmuOptions};
 use fields::PrimeField64;
-use riscv::RiscVRegisters;
 use sm_mem::MemHelpers;
 use zisk_common::{
     OperationBusData, RomBusData, MAX_OPERATION_DATA_SIZE, MEM_BUS_ID, OPERATION_BUS_ID, ROM_BUS_ID,

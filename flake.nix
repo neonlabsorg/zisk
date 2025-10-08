@@ -41,6 +41,9 @@
             pkgs.llvm
             pkgs.libclang.lib
             pkgs.clang
+            #pkgs.cargo
+            #pkgs.cargo-c
+            #pkgs.rustc
           ];
 
           RUSTFLAGS = (builtins.map (a: "-L ${a}/lib") [ pkgs.libgit2 ]);
