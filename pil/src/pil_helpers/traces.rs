@@ -16,7 +16,7 @@ use rayon::prelude::*;
 #[allow(dead_code)]
 type FieldExtension<F> = [F; 3];
 
-pub const PILOUT_HASH: &str = "87de97059ab7e131ef89b0894c497727ddcca95c120c8b90c57674ddf347016f";
+pub const PILOUT_HASH: &str = "9b5c29e084565c7a6f66dd44fbea60348c28700d2e8f411c098daefc9349aeb1";
 
 //AIRGROUP CONSTANTS
 
@@ -34,9 +34,9 @@ pub const ACCOUNTS_INIT_AIR_IDS: &[usize] = &[3];
 
 pub const ACCOUNTS_RESULT_AIR_IDS: &[usize] = &[4];
 
-pub const MEM_AIR_IDS: &[usize] = &[5];
+pub const ROM_DATA_AIR_IDS: &[usize] = &[5];
 
-pub const ROM_DATA_AIR_IDS: &[usize] = &[6];
+pub const MEM_AIR_IDS: &[usize] = &[6];
 
 pub const ACCOUNT_DATA_AIR_IDS: &[usize] = &[7];
 
@@ -170,21 +170,21 @@ trace!(AccountsResultTrace<F> {
  addr: F, val: [F; 2], val_init: [F; 2], val_wr: [F; 2], sel_wr: F, hash_accum: [F; 12],
 },  0, 4, 2097152 );
 
-trace!(MemFixed<F> {
- SEGMENT_L1: F, __L1__: F,
-},  0, 5, 4194304 );
-
-trace!(MemTrace<F> {
- addr: F, step: F, sel: F, addr_changes: F, value: [F; 2], wr: F, increment: [F; 2], read_same_addr: F,
-},  0, 5, 4194304 );
-
 trace!(RomDataFixed<F> {
  SEGMENT_L1: F, __L1__: F,
-},  0, 6, 2097152 );
+},  0, 5, 2097152 );
 
 trace!(RomDataTrace<F> {
  addr: F, step: F, sel: F, addr_changes: F, value: [F; 2],
-},  0, 6, 2097152 );
+},  0, 5, 2097152 );
+
+trace!(MemFixed<F> {
+ SEGMENT_L1: F, __L1__: F,
+},  0, 6, 4194304 );
+
+trace!(MemTrace<F> {
+ addr: F, step: F, sel: F, addr_changes: F, value: [F; 2], wr: F, increment: [F; 2], read_same_addr: F,
+},  0, 6, 4194304 );
 
 trace!(AccountDataFixed<F> {
  SEGMENT_L1: F, __L1__: F,
@@ -338,12 +338,12 @@ values!(MainAirValues<F> {
  main_last_segment: F, main_segment: F, segment_initial_pc: F, segment_previous_c: [F; 2], segment_next_pc: F, segment_last_c: [F; 2], last_reg_value: [[F; 2]; 31], last_reg_mem_step: [F; 31], im_direct: [FieldExtension<F>; 95],
 });
 
-values!(MemAirValues<F> {
- segment_id: F, is_first_segment: F, is_last_segment: F, previous_segment_value: [F; 2], previous_segment_step: F, previous_segment_addr: F, segment_last_value: [F; 2], segment_last_step: F, segment_last_addr: F, distance_base: [F; 2], distance_end: [F; 2], im_direct: [FieldExtension<F>; 6],
-});
-
 values!(RomDataAirValues<F> {
  segment_id: F, is_first_segment: F, is_last_segment: F, previous_segment_value: [F; 2], previous_segment_step: F, previous_segment_addr: F, segment_last_value: [F; 2], segment_last_step: F, segment_last_addr: F, im_direct: [FieldExtension<F>; 4],
+});
+
+values!(MemAirValues<F> {
+ segment_id: F, is_first_segment: F, is_last_segment: F, previous_segment_value: [F; 2], previous_segment_step: F, previous_segment_addr: F, segment_last_value: [F; 2], segment_last_step: F, segment_last_addr: F, distance_base: [F; 2], distance_end: [F; 2], im_direct: [FieldExtension<F>; 6],
 });
 
 values!(AccountDataAirValues<F> {
@@ -374,11 +374,11 @@ values!(AccountsResultAirGroupValues<F> {
  gsum_result: FieldExtension<F>,
 });
 
-values!(MemAirGroupValues<F> {
+values!(RomDataAirGroupValues<F> {
  gsum_result: FieldExtension<F>,
 });
 
-values!(RomDataAirGroupValues<F> {
+values!(MemAirGroupValues<F> {
  gsum_result: FieldExtension<F>,
 });
 

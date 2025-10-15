@@ -37,6 +37,8 @@ mollusk-svm.workspace=true
 solana-program-runtime.workspace=true
 solana-sbpf.workspace=true
 solana-pubkey.workspace=true
+blake3 = "1.8.2"
+serde_with = "3.15.0"
 
 [features]
 default = []

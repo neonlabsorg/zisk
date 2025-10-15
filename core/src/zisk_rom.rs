@@ -42,7 +42,6 @@
 //!       as index `(pc-ROM_ADDR)`
 //!   * If the address is < ROM_ADDR, then get it from the vector `rom_entry_instructions`, using as
 //!     index `(pc-ROM_ENTRY)/4`
-use std::default;
 use std::{collections::BTreeMap, path::PathBuf};
 
 use fields::PrimeField64;
@@ -57,7 +56,8 @@ use crate::{ZiskInst, ZiskInstBuilder, ROM_ADDR, ROM_ENTRY};
 
 use sbpf_parser::elf::{load_elf, ProcessedElf};
 use sbpf_parser::elf::{LoadEnv, load_elf_from_path};
-use solana_sdk::{account::Account, bpf_loader_upgradeable};
+use solana_sdk::account::Account;
+use serde_with::{serde_as, DisplayFromStr};
 
 const TRANSLATE_REG: u64 = 2;
 const FRAME_REGS_PTR: u64 = 3;
@@ -68,25 +68,31 @@ const SCRATCH_REG2: u64 = SCRATCH_REG + 1;
 const CU_METER_REG: u64 = SCRATCH_REG2 + 1;
 const TRANSPILE_ALIGN: i32 = 18;
 
+#[serde_as]
 #[derive(Clone, Serialize, Deserialize)]
 struct AccountInventoryItem {
+    #[serde_as(as = "DisplayFromStr")]
     pub key: Pubkey,
     pub writable: bool,
     pub file: String,
     /// lamports in the account
     pub lamports: u64,
     /// the program that owns this account. If executable, the program that loads this account.
+    #[serde_as(as = "DisplayFromStr")]
     pub owner: Pubkey,
     /// this account's data contains a loaded program (and is now read-only)
     pub executable: bool,
     /// the epoch at which this account will next owe rent
+    #[serde(default)]
     pub rent_epoch: u64,
 }
 
+#[serde_as]
 #[derive(Clone, Serialize, Deserialize)]
 struct AccountInventory {
     pub accounts: Vec<AccountInventoryItem>,
     pub syscalls_stubs: String,
+    #[serde_as(as = "DisplayFromStr")]
     pub main_program: Pubkey
 }
 
@@ -1081,6 +1087,24 @@ impl ZiskRom {
         ].into_iter()).collect()
     }
 
+    pub fn elfs_hash_from_path(path: PathBuf) -> String {
+        let mut meta_path = path.clone();
+        meta_path.push("metadata");
+        let meta_content = std::fs::read_to_string(meta_path).unwrap();
+        let meta = serde_json::from_str::<AccountInventory>(meta_content.as_str()).unwrap();
+        let mut hasher = blake3::Hasher::new();
+        for acc in meta.accounts.as_slice() {
+            if acc.executable {
+                hasher.update(&acc.key.to_bytes());
+                let mut file = path.clone();
+                file.push(acc.file.clone());
+                hasher.update(&std::fs::read(file).unwrap());
+            }
+        }
+
+        hasher.finalize().to_string()
+    }
+
     pub fn load_from_path(path: PathBuf) -> (Self, Vec<(Pubkey, Account)>) {
         let mut meta_path = path.clone();
         meta_path.push("metadata");
@@ -1089,8 +1113,12 @@ impl ZiskRom {
         let mut rom: Option<ZiskRom> = Option::None;
         let syscalls_stub = load_elf_from_path(LoadEnv::new().unwrap(), meta.syscalls_stubs.clone().into()).expect(format!("loading from {:?}", meta.syscalls_stubs).as_str());
         for acc in meta.accounts.as_slice() {
-            let data = std::fs::read(acc.file.clone()).expect(format!("failed to {0}", acc.file).as_str());
-            if acc.executable {
+            let data = {
+                let mut file = path.clone();
+                file.push(acc.file.clone());
+                std::fs::read(file).expect(format!("failed to {0}", acc.file).as_str())
+            };
+            if acc.key == meta.main_program {
                 rom = Some(Self::new(
                     meta.main_program,
                     load_elf(LoadEnv::new().unwrap(), data.as_slice()).expect(format!("loading from {:?}", path.as_path()).as_str()),
