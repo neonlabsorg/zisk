@@ -1,6 +1,9 @@
 #!/bin/bash
 
 echo =========================================================pilout
+
+cargo run --release --bin keccakf_fixed_gen
+
 node ./pil2-compiler/src/pil.js pil/zisk.pil -I pil,./pil2-proofman/pil2-components/lib/std/pil,state-machines,precompiles -o pil/zisk.pilout -u tmp/fixed -O fixed-to-file
 
 echo =========================================================rust helpers

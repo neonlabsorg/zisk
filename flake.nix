@@ -18,6 +18,7 @@
       in {
         devShells.default = pkgs.mkShell {
           packages = [
+            pkgs.nodejs_24
             pkgs.grpc
             pkgs.gmp
             pkgs.jq
