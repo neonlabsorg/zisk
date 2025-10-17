@@ -1,10 +1,10 @@
 use std::{collections::BTreeMap, sync::{atomic::AtomicBool, Arc, Mutex}};
 
+use mem_common::MemHelpers;
 use fields::PrimeField64;
-use proofman_common::{AirInstance, FromTrace, PreCalculate};
+use proofman_common::{AirInstance, FromTrace};
 use sbpf_parser::mem::TxInput;
-use sm_mem::MEMORY_STORE_OP;
-use zisk_common::{BusDevice, BusDeviceMetrics, CheckPoint, ChunkId, ComponentBuilder, Instance, InstanceCtx, InstanceType, MemBusData, Plan, Planner, MEM_BUS_ID};
+use zisk_common::{BusDevice, BusDeviceMetrics, CheckPoint, ChunkId, ComponentBuilder, Instance, InstanceCtx, InstanceType, MemBusData, MemCollectorInfo, Plan, Planner, MEM_BUS_ID};
 use zisk_pil::{AccountsResultTrace, AccountsResultTraceRow, ACCOUNTS_RESULT_AIR_IDS, ZISK_AIRGROUP_ID};
 
 use crate::poseidon::{PoseidonSM, POSEIDON_WIDTH};
@@ -106,8 +106,8 @@ impl Planner for AccountsResultPlanner {
             None,
             InstanceType::Instance,
             CheckPoint::Multiple(vec_chunk_ids),
-            PreCalculate::Slow,
             None,
+            1
         )]
     }
 }
@@ -165,6 +165,10 @@ impl<F: PrimeField64> Instance<F> for AccountsResultInstance<F> {
         ) -> Option<Box<dyn BusDevice<zisk_common::PayloadType>>> {
         Some(Box::new(AccountsResultCounter{ stats: self.sm.stats.clone() }))
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 pub struct AccountsResultCounter {
@@ -185,10 +189,11 @@ impl BusDevice<u64> for AccountsResultCounter {
             bus_id: &zisk_common::BusId,
             data: &[u64],
             _pending: &mut std::collections::VecDeque<(zisk_common::BusId, Vec<u64>)>,
+            _mem_collector_info: Option<&[MemCollectorInfo]>,
         ) -> bool {
         debug_assert!(*bus_id == MEM_BUS_ID);
 
-        if MemBusData::get_op(data) != MEMORY_STORE_OP {
+        if MemHelpers::is_write(MemBusData::get_op(data)) {
             if let Some(vals) = self.stats.0.get(&MemBusData::get_addr(data).into()) {
                 let mut vals = vals.lock().unwrap();
                 *vals = match *vals {

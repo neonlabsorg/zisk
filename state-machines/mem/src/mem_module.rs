@@ -17,12 +17,8 @@ pub trait MemModule<F: Clone>: Send + Sync {
         previous_segment: &MemPreviousSegment,
         trace_buffer: Vec<F>,
     ) -> AirInstance<F>;
-<<<<<<< HEAD
-    fn get_addr_range(&self) -> (u32, u32);
+
     fn is_dual(&self) -> bool;
-||||||| parent of dee8e3cd (replace the emulator)
-    fn get_addr_range(&self) -> (u32, u32);
-=======
+
     fn get_addr_range(&self) -> (u64, u64);
->>>>>>> dee8e3cd (replace the emulator)
 }

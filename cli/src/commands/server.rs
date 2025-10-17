@@ -6,12 +6,13 @@ use rom_setup::{
     gen_elf_hash, get_elf_bin_file_path, get_elf_data_hash, get_rom_blowup_factor,
     DEFAULT_CACHE_PATH,
 };
-use server::ZiskServerParams;
-use server::ZiskService;
 use std::collections::HashMap;
 use std::fs;
 use std::{path::PathBuf, process};
 use zisk_common::init_tracing;
+
+use server::ZiskServerParams;
+use server::ZiskService;
 
 use crate::commands::{get_proving_key, get_witness_computation_lib, Field};
 use crate::ux::print_banner;
@@ -174,41 +175,17 @@ impl ZiskServer {
             self.port,
             self.elf.clone(),
             get_witness_computation_lib(self.witness_lib.as_ref()),
-<<<<<<< HEAD
-            self.asm.clone(),
-            asm_rom,
-            self.asm_port,
-||||||| parent of dee8e3cd (replace the emulator)
-            self.asm.clone(),
-            asm_rom,
-=======
->>>>>>> dee8e3cd (replace the emulator)
             custom_commits_map,
             emulator,
             proving_key,
             self.verbose,
             debug_info,
-<<<<<<< HEAD
-||||||| parent of dee8e3cd (replace the emulator)
-            self.chunk_size_bits,
-            asm_runner_options,
-=======
-            self.chunk_size_bits,
->>>>>>> dee8e3cd (replace the emulator)
             self.verify_constraints,
             self.aggregation,
             self.final_snark,
             gpu_params,
-<<<<<<< HEAD
-            self.unlock_mapped_memory,
-            self.shared_tables,
-||||||| parent of dee8e3cd (replace the emulator)
-=======
-            self.port + 1,
             false,
-            mpi_context.world_rank,
-            mpi_context.local_rank
->>>>>>> dee8e3cd (replace the emulator)
+            self.shared_tables
         );
 
         if let Err(e) = ZiskService::new(&server_params)?.run() {

@@ -38,11 +38,6 @@ pub struct ZiskExecute {
     #[clap(short = 'e', long)]
     pub elf: PathBuf,
 
-    /// ASM file path
-    /// Optional, mutually exclusive with `--emulator`
-    #[clap(short = 's', long)]
-    pub asm: Option<PathBuf>,
-
     /// Use prebuilt emulator (mutually exclusive with `--asm`)
     #[clap(short = 'l', long, action = clap::ArgAction::SetTrue)]
     pub emulator: bool,
@@ -105,31 +100,6 @@ impl ZiskExecute {
 
         let emulator = if cfg!(target_os = "macos") { true } else { self.emulator };
 
-        let mut asm_rom = None;
-        if emulator {
-            self.asm = None;
-        } else if self.asm.is_none() {
-            let stem = self.elf.file_stem().unwrap().to_str().unwrap();
-            let hash = get_elf_data_hash(&self.elf)
-                .map_err(|e| anyhow::anyhow!("Error computing ELF hash: {}", e))?;
-            let new_filename = format!("{stem}-{hash}-mt.bin");
-            let asm_rom_filename = format!("{stem}-{hash}-rh.bin");
-            asm_rom = Some(default_cache_path.join(asm_rom_filename));
-            self.asm = Some(default_cache_path.join(new_filename));
-        }
-
-        if let Some(asm_path) = &self.asm {
-            if !asm_path.exists() {
-                return Err(anyhow::anyhow!("ASM file not found at {:?}", asm_path.display()));
-            }
-        }
-
-        if let Some(asm_rom) = &asm_rom {
-            if !asm_rom.exists() {
-                return Err(anyhow::anyhow!("ASM file not found at {:?}", asm_rom.display()));
-            }
-        }
-
         if let Some(input) = &self.input {
             if !input.exists() {
                 return Err(anyhow::anyhow!("Input file not found at {:?}", input.display()));
@@ -166,45 +136,10 @@ impl ZiskExecute {
 
         let mut witness_lib;
 
-<<<<<<< HEAD
         let mpi_ctx = proofman.get_mpi_ctx();
 
         initialize_logger(self.verbose.into(), Some(mpi_ctx.rank));
 
-        let asm_services = AsmServices::new(mpi_ctx.rank, mpi_ctx.node_rank, self.port);
-        let asm_runner_options = AsmRunnerOptions::new()
-            .with_verbose(self.verbose > 0)
-            .with_base_port(self.port)
-            .with_world_rank(mpi_ctx.rank)
-            .with_local_rank(mpi_ctx.node_rank)
-            .with_unlock_mapped_memory(self.unlock_mapped_memory);
-
-        if self.asm.is_some() {
-            // Start ASM microservices
-            tracing::info!(">>> [{}] Starting ASM microservices.", mpi_ctx.rank,);
-
-            asm_services.start_asm_services(self.asm.as_ref().unwrap(), asm_runner_options)?;
-        }
-
-||||||| parent of dee8e3cd (replace the emulator)
-        let asm_services =
-            AsmServices::new(mpi_context.world_rank, mpi_context.local_rank, self.port);
-        let asm_runner_options = AsmRunnerOptions::new()
-            .with_verbose(self.verbose > 0)
-            .with_base_port(self.port)
-            .with_world_rank(mpi_context.world_rank)
-            .with_local_rank(mpi_context.local_rank)
-            .with_unlock_mapped_memory(self.unlock_mapped_memory);
-
-        if self.asm.is_some() {
-            // Start ASM microservices
-            tracing::info!(">>> [{}] Starting ASM microservices.", mpi_context.world_rank,);
-
-            asm_services.start_asm_services(self.asm.as_ref().unwrap(), asm_runner_options)?;
-        }
-
-=======
->>>>>>> dee8e3cd (replace the emulator)
         match self.field {
             Field::Goldilocks => {
                 let library = unsafe {
@@ -215,22 +150,8 @@ impl ZiskExecute {
                 witness_lib = witness_lib_constructor(
                     self.verbose.into(),
                     self.elf.clone(),
-<<<<<<< HEAD
-                    self.asm.clone(),
-                    asm_rom,
                     Some(mpi_ctx.rank),
                     Some(mpi_ctx.node_rank),
-||||||| parent of dee8e3cd (replace the emulator)
-                    self.asm.clone(),
-                    asm_rom,
-                    None,
-                    Some(mpi_context.world_rank),
-                    Some(mpi_context.local_rank),
-=======
-                    None,
-                    Some(mpi_context.world_rank),
-                    Some(mpi_context.local_rank),
->>>>>>> dee8e3cd (replace the emulator)
                     self.port,
                     self.unlock_mapped_memory,
                     self.shared_tables,
@@ -245,22 +166,6 @@ impl ZiskExecute {
             }
         };
 
-<<<<<<< HEAD
-        if self.asm.is_some() {
-            // Shut down ASM microservices
-            tracing::info!("<<< [{}] Shutting down ASM microservices.", mpi_ctx.rank);
-            asm_services.stop_asm_services()?;
-        }
-
-||||||| parent of dee8e3cd (replace the emulator)
-        if self.asm.is_some() {
-            // Shut down ASM microservices
-            tracing::info!("<<< [{}] Shutting down ASM microservices.", mpi_context.world_rank);
-            asm_services.stop_asm_services()?;
-        }
-
-=======
->>>>>>> dee8e3cd (replace the emulator)
         Ok(())
     }
 
@@ -275,16 +180,11 @@ impl ZiskExecute {
 
         println!("{: >12} {}", "Elf".bright_green().bold(), self.elf.display());
 
-        if self.asm.is_some() {
-            let asm_path = self.asm.as_ref().unwrap().display();
-            println!("{: >12} {}", "ASM runner".bright_green().bold(), asm_path);
-        } else {
-            println!(
-                "{: >12} {}",
-                "Emulator".bright_green().bold(),
-                "Running in emulator mode".bright_yellow()
-            );
-        }
+        println!(
+            "{: >12} {}",
+            "Emulator".bright_green().bold(),
+            "Running in emulator mode".bright_yellow()
+        );
 
         if self.input.is_some() {
             let inputs_path = self.input.as_ref().unwrap().display();

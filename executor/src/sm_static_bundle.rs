@@ -10,6 +10,7 @@ use precomp_arith_eq_384::ArithEq384Manager;
 use precomp_keccakf::{KeccakfInstance, KeccakfManager};
 use precomp_sha256f::{Sha256fInstance, Sha256fManager};
 use proofman_common::ProofCtx;
+use sm_accounts::AccountsSMBundle;
 use sm_arith::{ArithFullInstance, ArithSM};
 use sm_binary::{BinaryAddInstance, BinaryBasicInstance, BinaryExtensionInstance, BinarySM};
 use sm_mem::{
@@ -108,16 +109,18 @@ impl<F: PrimeField64> StateMachines<F> {
 pub struct StaticSMBundle<F: PrimeField64> {
     process_only_operation_bus: bool,
     sm: HashMap<usize, SMType<F>>,
+    accs: AccountsSMBundle<F>
 }
 
 impl<F: PrimeField64> StaticSMBundle<F> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(process_only_operation_bus: bool, sm: Vec<(SMAirType, StateMachines<F>)>) -> Self {
+    pub fn new(process_only_operation_bus: bool, sm: Vec<(SMAirType, StateMachines<F>)>, accs: AccountsSMBundle<F>) -> Self {
         Self {
             process_only_operation_bus,
             sm: HashMap::from_iter(
                 sm.into_iter().map(|(air_ids, sm)| (sm.type_id(), (air_ids, sm))),
             ),
+            accs
         }
     }
 
@@ -138,6 +141,8 @@ impl<F: PrimeField64> StaticSMBundle<F> {
             }
         }
 
+        plans.extend(self.accs.plan(vec_counters).into_iter());
+
         plans
     }
 
@@ -156,6 +161,11 @@ impl<F: PrimeField64> StaticSMBundle<F> {
         if airgroup_id != ZISK_AIRGROUP_ID {
             panic!("Unsupported AIR group ID: {}", airgroup_id);
         }
+
+        let ictx = match self.accs.build_instance(ictx) {
+            sm_accounts::BuiltInstance::Built(i) => return i,
+            sm_accounts::BuiltInstance::NotRecognized(ictx) => ictx
+        };
 
         let (_, sm) = self
             .sm
@@ -212,6 +222,8 @@ impl<F: PrimeField64> StaticSMBundle<F> {
             }
         }
 
+        let (init, result) = self.accs.build_counters();
+
         StaticDataBus::new(
             self.process_only_operation_bus,
             mem_counter.expect("Mem counter not found"),
@@ -221,6 +233,8 @@ impl<F: PrimeField64> StaticSMBundle<F> {
             sha256f_counter.expect("Sha256f counter not found"),
             arith_eq_counter.expect("ArithEq counter not found"),
             arith_eq_384_counter.expect("ArithEq384 counter not found"),
+            init,
+            result,
             Some(0),
         )
     }

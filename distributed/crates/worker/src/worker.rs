@@ -12,8 +12,6 @@ use tokio::task::JoinHandle;
 use zisk_distributed_common::{AggregationParams, BlockContext, JobPhase, WorkerState};
 use zisk_distributed_common::{ComputeCapacity, JobId, WorkerId};
 
-use asm_runner::AsmRunnerOptions;
-use asm_runner::AsmServices;
 use fields::Goldilocks;
 use libloading::{Library, Symbol};
 use proofman::ProvePhaseInputs;
@@ -44,12 +42,6 @@ pub struct ProverConfig {
 
     /// Path to the witness computation dynamic library
     pub witness_lib: PathBuf,
-
-    /// Path to the ASM file (optional)
-    pub asm: Option<PathBuf>,
-
-    /// Path to the ASM ROM file (optional)
-    pub asm_rom: Option<PathBuf>,
 
     /// Map of custom commits
     pub custom_commits_map: HashMap<String, PathBuf>,
@@ -125,45 +117,14 @@ impl ProverConfig {
 
         let emulator =
             if cfg!(target_os = "macos") { true } else { prover_service_config.emulator };
-        let mut asm_rom = None;
-        if emulator {
-            prover_service_config.asm = None;
-        } else if prover_service_config.asm.is_none() {
-            let stem = prover_service_config
-                .elf
-                .file_stem()
-                .ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "ELF path '{}' does not have a file stem.",
-                        prover_service_config.elf.display()
-                    )
-                })?
-                .to_str()
-                .ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "ELF file stem for '{}' is not valid UTF-8.",
-                        prover_service_config.elf.display()
-                    )
-                })?;
-
-            let hash = get_elf_data_hash(&prover_service_config.elf)
-                .map_err(|e| anyhow::anyhow!("Error computing ELF hash: {}", e))?;
-            let new_filename = format!("{stem}-{hash}-mt.bin");
-            let asm_rom_filename = format!("{stem}-{hash}-rh.bin");
-            asm_rom = Some(default_cache_path.join(asm_rom_filename));
-            prover_service_config.asm = Some(default_cache_path.join(new_filename));
-        }
+        prover_service_config.asm = None;
+        
         if let Some(asm_path) = &prover_service_config.asm {
             if !asm_path.exists() {
                 return Err(anyhow::anyhow!("ASM file not found at {:?}", asm_path.display()));
             }
         }
 
-        if let Some(asm_rom) = &asm_rom {
-            if !asm_rom.exists() {
-                return Err(anyhow::anyhow!("ASM file not found at {:?}", asm_rom.display()));
-            }
-        }
         let blowup_factor = get_rom_blowup_factor(&proving_key);
         let rom_bin_path = get_elf_bin_file_path(
             &prover_service_config.elf.to_path_buf(),
@@ -197,8 +158,6 @@ impl ProverConfig {
         Ok(ProverConfig {
             elf: prover_service_config.elf.clone(),
             witness_lib: get_witness_computation_lib(prover_service_config.witness_lib.as_ref()),
-            asm: prover_service_config.asm.clone(),
-            asm_rom,
             custom_commits_map,
             emulator,
             proving_key,
@@ -238,7 +197,6 @@ pub struct Worker {
     // It is important to keep the witness_lib declaration before the proofman declaration
     // to ensure that the witness library is dropped before the proofman.
     _witness_lib: Arc<dyn WitnessLibrary<Goldilocks> + Send + Sync>,
-    _asm_services: Option<AsmServices>,
 
     proofman: Arc<ProofMan<Goldilocks>>,
     local_rank: i32,
@@ -265,26 +223,10 @@ impl Worker {
 
         let mpi_ctx = proofman.get_mpi_ctx();
 
-        let asm_runner_options = AsmRunnerOptions::new()
-            .with_verbose(config.verbose > 0)
-            .with_base_port(config.asm_port)
-            .with_world_rank(mpi_ctx.rank)
-            .with_local_rank(mpi_ctx.node_rank)
-            .with_unlock_mapped_memory(config.unlock_mapped_memory);
-
         let world_rank = mpi_ctx.rank;
         let local_rank = mpi_ctx.node_rank;
         let base_port = config.asm_port;
         let unlock_mapped_memory = config.unlock_mapped_memory;
-
-        let asm_services = if config.emulator {
-            None
-        } else {
-            let asm_services = AsmServices::new(world_rank, local_rank, base_port);
-            asm_services
-                .start_asm_services(config.asm.as_ref().unwrap(), asm_runner_options.clone())?;
-            Some(asm_services)
-        };
 
         let library =
             unsafe { Library::new(config.witness_lib.clone()).expect("Failed to load library") };
@@ -294,8 +236,6 @@ impl Worker {
         let mut witness_lib = witness_lib_constructor(
             config.verbose.into(),
             config.elf.clone(),
-            config.asm.clone(),
-            config.asm_rom.clone(),
             Some(world_rank),
             Some(local_rank),
             base_port,
@@ -318,7 +258,6 @@ impl Worker {
             _witness_lib: witness_lib,
             proofman: Arc::new(proofman),
             local_rank,
-            _asm_services: asm_services,
         })
     }
 

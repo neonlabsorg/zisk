@@ -13,17 +13,9 @@ use zisk_pil::{
 use mem_common::save_plans;
 
 use crate::{
-<<<<<<< HEAD
     MemModulePlanner, MemModulePlannerConfig, INPUT_DATA_W_ADDR_INIT, ROM_DATA_W_ADDR_INIT,
-||||||| parent of dee8e3cd (replace the emulator)
-    MemAlignPlanner, MemCounters, MemModulePlanner, MemModulePlannerConfig, INPUT_DATA_W_ADDR_INIT,
-    RAM_W_ADDR_INIT, ROM_DATA_W_ADDR_INIT,
-=======
-    MemAlignPlanner, MemCounters, MemModulePlanner, MemModulePlannerConfig, INPUT_DATA_W_ADDR_INIT, RAM_W_ADDR_INIT, ROM_DATA_W_ADDR_INIT
->>>>>>> dee8e3cd (replace the emulator)
 };
 
-<<<<<<< HEAD
 use mem_common::{MemAlignPlanner, MemCounters, RAM_W_ADDR_INIT};
 
 #[cfg(feature = "save_mem_counters")]
@@ -60,11 +52,8 @@ impl From<SerializableMemCounters> for MemCounters {
     }
 }
 
-||||||| parent of dee8e3cd (replace the emulator)
-=======
 use crate::accounts_data_sm::ACCOUNTS_W_ADDR_INIT;
 
->>>>>>> dee8e3cd (replace the emulator)
 pub trait MemPlanCalculator {
     fn plan(&mut self);
     fn collect_plans(&mut self) -> Vec<Plan>;
@@ -312,26 +301,23 @@ impl MemPlanner {
         self.generate_plans_from_counters(counters)
     }
 
-<<<<<<< HEAD
     pub fn generate_plans_from_counters(
         &self,
         counters: Arc<Vec<(ChunkId, &MemCounters)>>,
     ) -> Vec<Plan> {
-||||||| parent of dee8e3cd (replace the emulator)
-=======
         let accounts_data_planner = Arc::new(Mutex::new(MemModulePlanner::new(
             MemModulePlannerConfig {
                 airgroup_id: ZISK_AIRGROUP_ID,
                 air_id: ACCOUNT_DATA_AIR_IDS[0],
                 addr_index: 2,
                 from_addr: ACCOUNTS_W_ADDR_INIT,
+                last_addr: ACCOUNTS_W_ADDR_INIT,
                 rows: AccountDataTrace::<usize>::NUM_ROWS as u32,
                 consecutive_addr: false,
             },
             counters.clone(),
         )));
 
->>>>>>> dee8e3cd (replace the emulator)
         let mem_planner = Arc::new(Mutex::new(MemModulePlanner::new(
             MemModulePlannerConfig {
                 airgroup_id: ZISK_AIRGROUP_ID,
@@ -370,15 +356,7 @@ impl MemPlanner {
             },
             counters.clone(),
         )));
-<<<<<<< HEAD
-||||||| parent of dee8e3cd (replace the emulator)
-        // let mut mem_align_planner = Arc::new(Mutex::new(MemAlignPlanner::new(counters.clone())));
-=======
 
-
-
-        // let mut mem_align_planner = Arc::new(Mutex::new(MemAlignPlanner::new(counters.clone())));
->>>>>>> dee8e3cd (replace the emulator)
         let mut mem_align_planner = MemAlignPlanner::new(counters.clone());
 
         let planners = vec![

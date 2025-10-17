@@ -1,11 +1,12 @@
 use fields::{Goldilocks, PrimeField64};
-use zisk_common::ComponentBuilder;
+use zisk_common::{ComponentBuilder, Instance, InstanceCtx};
 use init::{AccountsInitCounter, AccountsInitSM};
 use poseidon::{PoseidonPermuter, PoseidonSM};
 use result::{AccountsResultCounter, AccountsResultSM};
 use sbpf_parser::mem::TxInput;
 use zisk_common::{BusDeviceMetrics, ChunkId, Plan};
-use std::sync::{Arc, RwLock};
+use zisk_pil::{ACCOUNTS_INIT_AIR_IDS, ACCOUNTS_RESULT_AIR_IDS, ZISK_AIRGROUP_ID};
+use std::{collections::HashMap, sync::{Arc, RwLock}};
 
 pub mod init;
 pub mod result;
@@ -18,6 +19,15 @@ pub struct AccountsSMBundle<F: PrimeField64> {
     result_sm: Arc<RwLock<Option<AccountsResultSM<F>>>>,
     poseidon_sm: Arc<RwLock<Option<PoseidonSM<F>>>>,
     poseidon_permuter: PoseidonPermuter<F>
+}
+
+pub const ACCOUNTS_INIT_ID: usize = 11;
+pub const ACCOUNTS_RESULT_ID: usize = 12;
+const PERMUTER_ID: usize = 13;
+
+pub enum BuiltInstance<F: PrimeField64> {
+    Built(Box<dyn Instance<F>>),
+    NotRecognized(InstanceCtx),
 }
 
 impl<F: PrimeField64> AccountsSMBundle<F> {
@@ -44,15 +54,29 @@ impl<F: PrimeField64> AccountsSMBundle<F> {
 
     }
 
-    pub fn plan(&self, mut it: impl Iterator<Item = Vec<(ChunkId, Box<dyn BusDeviceMetrics>)>>) -> Vec<Vec<Plan>> {
+    pub fn plan(&self, metrics: &mut HashMap<usize, Vec::<(ChunkId, Box<dyn BusDeviceMetrics>)>>) -> Vec<(usize, Vec<Plan>)> {
         vec![
-            self.init_sm.read().unwrap().as_ref().unwrap().build_planner().plan(it.next().unwrap()),
-            self.result_sm.read().unwrap().as_ref().unwrap().build_planner().plan(it.next().unwrap()),
-            self.poseidon_sm.read().unwrap().as_ref().unwrap().build_planner().plan(vec![]),
+            (ACCOUNTS_INIT_ID, self.init_sm.read().unwrap().as_ref().unwrap().build_planner().plan(metrics.remove(&ACCOUNTS_INIT_ID).unwrap())),
+            (ACCOUNTS_RESULT_ID, self.result_sm.read().unwrap().as_ref().unwrap().build_planner().plan(metrics.remove(&ACCOUNTS_RESULT_ID).unwrap())),
+            (PERMUTER_ID, self.poseidon_sm.read().unwrap().as_ref().unwrap().build_planner().plan(vec![])),
         ]
     }
 
-    pub fn build_instances(&self) {
+    pub fn build_instance(&self, ictx: InstanceCtx) -> BuiltInstance<F> {
+        let airgroup_id = ictx.plan.airgroup_id;
+        let air_id = ictx.plan.air_id;
+
+        if airgroup_id != ZISK_AIRGROUP_ID {
+            panic!("Unsupported AIR group ID: {}", airgroup_id);
+        }
+
+        if air_id == ACCOUNTS_INIT_AIR_IDS[0] {
+            BuiltInstance::Built(self.init_sm.read().unwrap().as_ref().unwrap().build_instance(ictx))
+        } else if air_id == ACCOUNTS_RESULT_AIR_IDS[0] {
+            BuiltInstance::Built(self.result_sm.read().unwrap().as_ref().unwrap().build_instance(ictx))
+        } else {
+            BuiltInstance::NotRecognized(ictx)
+        }
     }
 
     pub fn build_counters(&self) -> (AccountsInitCounter, AccountsResultCounter) {

@@ -12,7 +12,7 @@ pub const ARITH_256_MOD_MEM_CONFIG: ArithEqMemInputConfig = ArithEqMemInputConfi
     chunks_per_param: 4,
 };
 pub fn generate_arith256_mod_mem_inputs(
-    addr_main: u32,
+    addr_main: u64,
     step_main: u64,
     data: &[u64],
     only_counters: bool,
@@ -38,7 +38,7 @@ pub fn generate_arith256_mod_mem_inputs(
 }
 
 pub fn skip_arith256_mod_mem_inputs(
-    addr_main: u32,
+    addr_main: u64,
     data: &[u64],
     mem_collectors_info: &[MemCollectorInfo],
 ) -> bool {

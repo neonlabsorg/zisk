@@ -37,7 +37,7 @@ impl MemAlignCollector {
             write_byte: mem_align_checkpoint.write_byte,
         }
     }
-    fn input_push_read(&mut self, addr: u32, bytes: u8, data: &[u64]) {
+    fn input_push_read(&mut self, addr: u64, bytes: u8, data: &[u64]) {
         let mem_values = MemBusData::get_mem_values(data);
         self.inputs.push(MemAlignInput {
             addr,
@@ -48,7 +48,7 @@ impl MemAlignCollector {
             mem_values,
         });
     }
-    fn input_push_write(&mut self, addr: u32, bytes: u8, data: &[u64]) {
+    fn input_push_write(&mut self, addr: u64, bytes: u8, data: &[u64]) {
         self.inputs.push(MemAlignInput {
             addr,
             is_write: true,

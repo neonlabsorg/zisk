@@ -115,13 +115,13 @@ impl BusDevice<u64> for KeccakfCounterInputGen {
         }
 
         if let Some(mem_collectors_info) = mem_collector_info {
-            if skip_keccakf_mem_inputs(data[B] as u32, mem_collectors_info) {
+            if skip_keccakf_mem_inputs(data[B], mem_collectors_info) {
                 return true;
             }
         }
 
         let step_main = data[A];
-        let addr_main = data[B] as u32;
+        let addr_main = data[B];
 
         let only_counters = self.mode == BusDeviceMode::Counter;
         if only_counters {

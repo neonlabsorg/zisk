@@ -18,7 +18,7 @@ pub struct Sha256MemInputConfig {
 }
 
 pub fn generate_sha256f_mem_inputs(
-    addr_main: u32,
+    addr_main: u64,
     step_main: u64,
     data: &[u64],
     only_counters: bool,
@@ -42,7 +42,7 @@ pub fn generate_sha256f_mem_inputs(
     // Start by generating the indirection reads
     for iparam in 0..indirect_params {
         MemBusHelpers::mem_aligned_load(
-            addr_main + iparam as u32 * 8,
+            addr_main + iparam as u64 * 8,
             step_main,
             data[OPERATION_BUS_DATA_SIZE + iparam],
             pending,
@@ -59,7 +59,7 @@ pub fn generate_sha256f_mem_inputs(
     for (iparam, &chunks) in chunks_per_param.iter().enumerate().take(params_count) {
         let is_write = iparam >= read_params;
         let param_index = if is_write { iparam - read_params } else { iparam };
-        let param_addr = data[OPERATION_BUS_DATA_SIZE + param_index] as u32;
+        let param_addr = data[OPERATION_BUS_DATA_SIZE + param_index];
         // read/write all chunks of the iparam parameter
         let current_param_offset = if is_write {
             // if write calculate index over write_data
@@ -79,7 +79,7 @@ pub fn generate_sha256f_mem_inputs(
                 data[current_param_offset + ichunk]
             };
             MemBusHelpers::mem_aligned_op(
-                param_addr + ichunk as u32 * 8,
+                param_addr + ichunk as u64 * 8,
                 step_main,
                 chunk_data,
                 is_write,
@@ -90,7 +90,7 @@ pub fn generate_sha256f_mem_inputs(
 }
 
 pub fn skip_sha256f_mem_inputs(
-    addr_main: u32,
+    addr_main: u64,
     data: &[u64],
     mem_collectors_info: &[MemCollectorInfo],
 ) -> bool {
@@ -100,7 +100,7 @@ pub fn skip_sha256f_mem_inputs(
     let chunks_per_param = [4usize, 8, 4];
 
     for iparam in 0..indirect_params {
-        let addr = addr_main + iparam as u32 * 8;
+        let addr = addr_main + iparam as u64 * 8;
         for mem_collector in mem_collectors_info {
             let addr_w = MemHelpers::get_addr_w(addr);
             if !mem_collector.skip(addr_w) {
@@ -112,10 +112,10 @@ pub fn skip_sha256f_mem_inputs(
     for (iparam, &chunks) in chunks_per_param.iter().enumerate().take(read_params + write_params) {
         let is_write = iparam >= read_params;
         let param_index = if is_write { iparam - read_params } else { iparam };
-        let param_addr = data[OPERATION_BUS_DATA_SIZE + param_index] as u32;
+        let param_addr = data[OPERATION_BUS_DATA_SIZE + param_index];
 
         for ichunk in 0..chunks {
-            let addr = param_addr + ichunk as u32 * 8;
+            let addr = param_addr + ichunk as u64 * 8;
             for mem_collector in mem_collectors_info {
                 let addr_w = MemHelpers::get_addr_w(addr);
                 if !mem_collector.skip(addr_w) {

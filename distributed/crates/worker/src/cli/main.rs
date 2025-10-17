@@ -199,19 +199,11 @@ fn print_command_info(
     );
 
     println!("{: >12} {}", "Elf".bright_green().bold(), prover_config.elf.display());
-    if prover_config.asm.is_some() {
-        if let Some(asm_port) = prover_config.asm_port.as_ref() {
-            println!("{: >12} {}", "Asm port".bright_green().bold(), asm_port);
-        }
-        let asm_path = prover_config.asm.as_ref().unwrap().display();
-        println!("{: >12} {}", "ASM runner".bright_green().bold(), asm_path);
-    } else {
-        println!(
-            "{: >12} {}",
-            "Emulator".bright_green().bold(),
-            "Running in emulator mode".bright_yellow()
-        );
-    }
+    println!(
+        "{: >12} {}",
+        "Emulator".bright_green().bold(),
+        "Running in emulator mode".bright_yellow()
+    );
     println!(
         "{: >12} {}",
         "Proving key".bright_green().bold(),

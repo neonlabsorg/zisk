@@ -74,8 +74,8 @@ impl MemHelpers {
         (addr & MEM_ADDR_ALIGN_MASK) + bytes as u64 > 8
     }
     #[inline(always)]
-    pub fn is_dual(addr: u32) -> bool {
-        addr as u64 >= RAM_ADDR && addr as u64 <= (RAM_ADDR + RAM_SIZE)
+    pub fn is_dual(addr: u64) -> bool {
+        addr >= RAM_ADDR && addr <= (RAM_ADDR + RAM_SIZE)
     }
     #[inline(always)]
     pub fn is_write(op: u8) -> bool {
@@ -161,15 +161,7 @@ impl MemHelpers {
     }
     #[inline(always)]
     pub fn mem_load(
-<<<<<<< HEAD:state-machines/mem-common/src/mem_helpers.rs
-        addr: u32,
-||||||| parent of dee8e3cd (replace the emulator):state-machines/mem/src/mem_helpers.rs
-        &self,
-        addr: u32,
-=======
-        &self,
         addr: u64,
->>>>>>> dee8e3cd (replace the emulator):state-machines/mem/src/mem_helpers.rs
         step: u64,
         step_offset: u8,
         bytes: u8,
@@ -177,16 +169,8 @@ impl MemHelpers {
     ) -> [u64; 7] {
         [
             MEMORY_LOAD_OP as u64,
-<<<<<<< HEAD:state-machines/mem-common/src/mem_helpers.rs
-            addr as u64,
-            Self::main_step_to_mem_step(step, step_offset),
-||||||| parent of dee8e3cd (replace the emulator):state-machines/mem/src/mem_helpers.rs
-            addr as u64,
-            self.main_step_to_mem_step(step, step_offset),
-=======
             addr,
-            self.main_step_to_mem_step(step, step_offset),
->>>>>>> dee8e3cd (replace the emulator):state-machines/mem/src/mem_helpers.rs
+            Self::main_step_to_mem_step(step, step_offset),
             bytes as u64,
             mem_values[0],
             mem_values[1],
@@ -195,15 +179,7 @@ impl MemHelpers {
     }
     #[inline(always)]
     pub fn mem_write(
-<<<<<<< HEAD:state-machines/mem-common/src/mem_helpers.rs
-        addr: u32,
-||||||| parent of dee8e3cd (replace the emulator):state-machines/mem/src/mem_helpers.rs
-        &self,
-        addr: u32,
-=======
-        &self,
         addr: u64,
->>>>>>> dee8e3cd (replace the emulator):state-machines/mem/src/mem_helpers.rs
         step: u64,
         step_offset: u8,
         bytes: u8,
@@ -212,16 +188,8 @@ impl MemHelpers {
     ) -> [u64; 7] {
         [
             MEMORY_STORE_OP as u64,
-<<<<<<< HEAD:state-machines/mem-common/src/mem_helpers.rs
-            addr as u64,
-            Self::main_step_to_mem_step(step, step_offset),
-||||||| parent of dee8e3cd (replace the emulator):state-machines/mem/src/mem_helpers.rs
-            addr as u64,
-            self.main_step_to_mem_step(step, step_offset),
-=======
             addr,
-            self.main_step_to_mem_step(step, step_offset),
->>>>>>> dee8e3cd (replace the emulator):state-machines/mem/src/mem_helpers.rs
+            Self::main_step_to_mem_step(step, step_offset),
             bytes as u64,
             mem_values[0],
             mem_values[1],

@@ -27,8 +27,8 @@ const ST_X_TO_INI_MASK: u32 = 0xFFFF_FFFF >> (32 - ST_BITS_OFFSET);
 
 #[derive(Default)]
 pub struct MemCounters {
-    pub addr: HashMap<u32, u32>,
-    pub addr_sorted: [Vec<(u32, u32)>; 3],
+    pub addr: HashMap<u64, u32>,
+    pub addr_sorted: [Vec<(u64, u32)>; 3],
     pub mem_align_counters: MemAlignCounters,
     pub file: Option<File>,
 }
@@ -68,7 +68,7 @@ impl MemCounters {
     }
     pub fn close(&mut self) {
         // address must be ordered
-        let mut addr_vector: Vec<(u32, u32)> = std::mem::take(&mut self.addr)
+        let mut addr_vector: Vec<(u64, u32)> = std::mem::take(&mut self.addr)
             .into_par_iter()
             .map(|(k, counter)| (k, Self::close_st_counter(counter)))
             .collect();
@@ -233,7 +233,7 @@ impl MemCounters {
                 }
             }
 
-            let mem_align_op_rows = 1 + addr_count * ops_by_addr;
+            let mem_align_op_rows = 1 + addr_count * ops_by_addr as u64;
 
             if is_full {
                 match mem_align_op_rows {

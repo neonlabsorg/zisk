@@ -18,19 +18,13 @@ zisk-pil = { workspace = true }
 riscv = { workspace = true }
 data-bus = { workspace = true }
 rayon = { workspace = true }
-<<<<<<< HEAD
 sm-mem = { workspace = true }
 mem-common = { workspace = true }
 sm-arith = { workspace = true }
 sm-binary = { workspace = true }
-||||||| parent of dee8e3cd (replace the emulator)
-sm-mem = { path = "../state-machines/mem" }
-=======
-sm-mem = { path = "../state-machines/mem" }
 svm-tracer = { workspace = true }
 mollusk-svm = { workspace = true }
 sbpf-parser.workspace = true
->>>>>>> dee8e3cd (replace the emulator)
 
 fields = { workspace=true }
 clap = { workspace = true }

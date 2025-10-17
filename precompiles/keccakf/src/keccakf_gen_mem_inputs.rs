@@ -15,7 +15,7 @@ pub struct KeccakfMemInputConfig {
 }
 
 pub fn generate_keccakf_mem_inputs(
-    addr_main: u32,
+    addr_main: u64,
     step_main: u64,
     data: &[u64],
     only_counters: bool,
@@ -37,25 +37,25 @@ pub fn generate_keccakf_mem_inputs(
     for iparam in 0..params_count {
         let is_write = iparam >= read_params;
         let param_index = if is_write { iparam - read_params } else { iparam };
-        let param_addr = addr_main + (param_index * 8 * chunks_per_param) as u32;
+        let param_addr = addr_main + param_index * 8 * chunks_per_param;
 
         // read/write all chunks of the iparam parameter
         let current_param_offset = if is_write {
             // if write calculate index over write_data
             chunks_per_param * (iparam - read_params)
         } else {
-            params_offset + chunks_per_param * iparam
+            params_offset as u64 + chunks_per_param * iparam
         };
         for ichunk in 0..chunks_per_param {
             let chunk_data = if only_counters && is_write {
                 0
             } else if is_write {
-                state[current_param_offset + ichunk]
+                state[(current_param_offset + ichunk) as usize]
             } else {
-                data[current_param_offset + ichunk]
+                data[(current_param_offset + ichunk) as usize]
             };
             MemBusHelpers::mem_aligned_op(
-                param_addr + ichunk as u32 * 8,
+                param_addr + ichunk as u64 * 8,
                 step_main,
                 chunk_data,
                 is_write,
@@ -65,13 +65,13 @@ pub fn generate_keccakf_mem_inputs(
     }
 }
 
-pub fn skip_keccakf_mem_inputs(addr_main: u32, mem_collectors_info: &[MemCollectorInfo]) -> bool {
+pub fn skip_keccakf_mem_inputs(addr_main: u64, mem_collectors_info: &[MemCollectorInfo]) -> bool {
     let write_params = 1;
     let chunks_per_param = 25;
     for param_index in 0..write_params {
-        let param_addr = addr_main + (param_index * 8 * chunks_per_param) as u32;
+        let param_addr = addr_main + (param_index * 8 * chunks_per_param);
         for ichunk in 0..chunks_per_param {
-            let addr = param_addr + ichunk as u32 * 8;
+            let addr = param_addr + ichunk * 8;
             for mem_collector in mem_collectors_info {
                 let addr_w = MemHelpers::get_addr_w(addr);
                 if !mem_collector.skip(addr_w) {

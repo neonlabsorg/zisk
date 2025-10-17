@@ -27,7 +27,7 @@ pub trait MemAlignByteRow<F: PrimeField64, T> {
         value_16b: u16,
         value_8b: u8,
         byte_value: u8,
-        addr_w: u32,
+        addr_w: u64,
         step: u64,
     );
     fn set_write_fields(
@@ -81,7 +81,7 @@ impl<F: PrimeField64> MemAlignByteRow<F, MemAlignByteTrace<F>> for MemAlignByteT
         value_16b: u16,
         value_8b: u8,
         byte_value: u8,
-        addr_w: u32,
+        addr_w: u64,
         step: u64,
     ) {
         self.sel_high_4b = F::from_bool(sel_high_4b);
@@ -92,7 +92,7 @@ impl<F: PrimeField64> MemAlignByteRow<F, MemAlignByteTrace<F>> for MemAlignByteT
         self.value_16b = F::from_u16(value_16b);
         self.value_8b = F::from_u8(value_8b);
         self.byte_value = F::from_u8(byte_value);
-        self.addr_w = F::from_u32(addr_w);
+        self.addr_w = F::from_u64(addr_w);
         self.step = F::from_u64(step);
     }
     #[inline(always)]
@@ -170,7 +170,7 @@ impl<F: PrimeField64> MemAlignByteRow<F, MemAlignReadByteTrace<F>> for MemAlignR
         value_16b: u16,
         value_8b: u8,
         byte_value: u8,
-        addr_w: u32,
+        addr_w: u64,
         step: u64,
     ) {
         self.sel_high_4b = F::from_bool(sel_high_4b);
@@ -181,7 +181,7 @@ impl<F: PrimeField64> MemAlignByteRow<F, MemAlignReadByteTrace<F>> for MemAlignR
         self.value_16b = F::from_u16(value_16b);
         self.value_8b = F::from_u8(value_8b);
         self.byte_value = F::from_u8(byte_value);
-        self.addr_w = F::from_u32(addr_w);
+        self.addr_w = F::from_u64(addr_w);
         self.step = F::from_u64(step);
     }
     #[inline(always)]
@@ -255,7 +255,7 @@ impl<F: PrimeField64> MemAlignByteRow<F, MemAlignWriteByteTrace<F>>
         value_16b: u16,
         value_8b: u8,
         byte_value: u8,
-        addr_w: u32,
+        addr_w: u64,
         step: u64,
     ) {
         self.sel_high_4b = F::from_bool(sel_high_4b);
@@ -266,7 +266,7 @@ impl<F: PrimeField64> MemAlignByteRow<F, MemAlignWriteByteTrace<F>>
         self.value_16b = F::from_u16(value_16b);
         self.value_8b = F::from_u8(value_8b);
         self.byte_value = F::from_u8(byte_value);
-        self.addr_w = F::from_u32(addr_w);
+        self.addr_w = F::from_u64(addr_w);
         self.step = F::from_u64(step);
     }
     #[inline(always)]
@@ -321,7 +321,7 @@ impl<F: PrimeField64> MemAlignByteRow<F, MemAlignWriteByteTrace<F>>
     }
 }
 
-const OFFSET_MASK: u32 = 0x07;
+const OFFSET_MASK: u64 = 0x07;
 const OFFSET_BITS: u32 = 3;
 const DUAL_BYTE_TABLE_ID: usize = 88;
 

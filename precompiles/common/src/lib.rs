@@ -47,7 +47,7 @@ const MAX_MEM_OPS_BY_MAIN_STEP: u64 = 4;
 
 impl MemBusHelpers {
     pub fn mem_aligned_load(
-        addr: u32,
+        addr: u64,
         step: u64,
         mem_value: u64,
         pending: &mut VecDeque<(BusId, Vec<u64>)>,
@@ -85,7 +85,7 @@ impl MemBusHelpers {
         ));
     }
     pub fn mem_aligned_op(
-        addr: u32,
+        addr: u64,
         step: u64,
         value: u64,
         is_write: bool,

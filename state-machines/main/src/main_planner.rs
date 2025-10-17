@@ -6,7 +6,7 @@
 use std::any::Any;
 
 use fields::PrimeField;
-use zisk_common::{BusDeviceMetrics, CheckPoint, ChunkId, InstanceType, Metrics, Plan, SegmentId};
+use zisk_common::{BusDeviceMetrics, CheckPoint, ChunkId, EmuTrace, InstanceType, Metrics, Plan, SegmentId};
 use zisk_pil::{MainTrace, MAIN_AIR_IDS, ZISK_AIRGROUP_ID};
 
 use crate::MainCounter;

@@ -16,13 +16,7 @@ use rayon::prelude::*;
 #[allow(dead_code)]
 type FieldExtension<F> = [F; 3];
 
-<<<<<<< HEAD
-pub const PILOUT_HASH: &str = "163bcca4d46e9820bcb620f1da69250c790cb1de690f03c76877618f09a22d33";
-||||||| parent of dee8e3cd (replace the emulator)
-pub const PILOUT_HASH: &str = "a26b229c9381de520c456c2be7174fac27990d917e66d92ea613d7d976cd22fc";
-=======
-pub const PILOUT_HASH: &str = "99ae3acaca77efc1c101d59d827db84b7e2527ea27c5335d894c51f167dbb9d2";
->>>>>>> dee8e3cd (replace the emulator)
+pub const PILOUT_HASH: &str = "d055cf0cbaa18d9a0e5bd7e88fea4e4581f7d833159b6a93a30cf23d0f55e1e5";
 
 //AIRGROUP CONSTANTS
 
@@ -42,117 +36,41 @@ pub const ACCOUNTS_RESULT_AIR_IDS: &[usize] = &[4];
 
 pub const ROM_DATA_AIR_IDS: &[usize] = &[5];
 
-<<<<<<< HEAD
-pub const MEM_ALIGN_BYTE_AIR_IDS: &[usize] = &[6];
-||||||| parent of dee8e3cd (replace the emulator)
-pub const MEM_ALIGN_ROM_AIR_IDS: &[usize] = &[6];
-=======
 pub const MEM_AIR_IDS: &[usize] = &[6];
->>>>>>> dee8e3cd (replace the emulator)
 
-<<<<<<< HEAD
-pub const MEM_ALIGN_READ_BYTE_AIR_IDS: &[usize] = &[7];
-||||||| parent of dee8e3cd (replace the emulator)
-pub const ARITH_AIR_IDS: &[usize] = &[7];
-=======
 pub const ACCOUNT_DATA_AIR_IDS: &[usize] = &[7];
->>>>>>> dee8e3cd (replace the emulator)
 
-<<<<<<< HEAD
-pub const MEM_ALIGN_WRITE_BYTE_AIR_IDS: &[usize] = &[8];
-||||||| parent of dee8e3cd (replace the emulator)
-pub const ARITH_TABLE_AIR_IDS: &[usize] = &[8];
-=======
 pub const INPUT_DATA_AIR_IDS: &[usize] = &[8];
->>>>>>> dee8e3cd (replace the emulator)
 
-<<<<<<< HEAD
-pub const ARITH_AIR_IDS: &[usize] = &[9];
-||||||| parent of dee8e3cd (replace the emulator)
-pub const ARITH_RANGE_TABLE_AIR_IDS: &[usize] = &[9];
-=======
 pub const MEM_ALIGN_AIR_IDS: &[usize] = &[9];
->>>>>>> dee8e3cd (replace the emulator)
 
-pub const MEM_ALIGN_ROM_AIR_IDS: &[usize] = &[10];
+pub const MEM_ALIGN_BYTE_AIR_IDS: &[usize] = &[10];
 
-pub const ARITH_AIR_IDS: &[usize] = &[11];
+pub const MEM_ALIGN_READ_BYTE_AIR_IDS: &[usize] = &[11];
 
-<<<<<<< HEAD
-pub const BINARY_EXTENSION_AIR_IDS: &[usize] = &[12];
-||||||| parent of dee8e3cd (replace the emulator)
-pub const BINARY_TABLE_AIR_IDS: &[usize] = &[12];
-=======
-pub const ARITH_TABLE_AIR_IDS: &[usize] = &[12];
->>>>>>> dee8e3cd (replace the emulator)
+pub const MEM_ALIGN_WRITE_BYTE_AIR_IDS: &[usize] = &[12];
 
-<<<<<<< HEAD
-pub const ARITH_EQ_AIR_IDS: &[usize] = &[13];
-||||||| parent of dee8e3cd (replace the emulator)
-pub const BINARY_EXTENSION_AIR_IDS: &[usize] = &[13];
-=======
-pub const ARITH_RANGE_TABLE_AIR_IDS: &[usize] = &[13];
->>>>>>> dee8e3cd (replace the emulator)
+pub const ARITH_AIR_IDS: &[usize] = &[13];
 
-<<<<<<< HEAD
-pub const ARITH_EQ_384_AIR_IDS: &[usize] = &[14];
-||||||| parent of dee8e3cd (replace the emulator)
-pub const BINARY_EXTENSION_TABLE_AIR_IDS: &[usize] = &[14];
-=======
 pub const BINARY_AIR_IDS: &[usize] = &[14];
->>>>>>> dee8e3cd (replace the emulator)
 
-<<<<<<< HEAD
-pub const KECCAKF_AIR_IDS: &[usize] = &[15];
-||||||| parent of dee8e3cd (replace the emulator)
-pub const ARITH_EQ_AIR_IDS: &[usize] = &[15];
-=======
 pub const BINARY_ADD_AIR_IDS: &[usize] = &[15];
->>>>>>> dee8e3cd (replace the emulator)
 
-<<<<<<< HEAD
-pub const SHA_256_F_AIR_IDS: &[usize] = &[16];
-||||||| parent of dee8e3cd (replace the emulator)
-pub const ARITH_EQ_LT_TABLE_AIR_IDS: &[usize] = &[16];
-=======
-pub const BINARY_TABLE_AIR_IDS: &[usize] = &[16];
->>>>>>> dee8e3cd (replace the emulator)
+pub const BINARY_EXTENSION_AIR_IDS: &[usize] = &[16];
 
-<<<<<<< HEAD
-pub const SPECIFIED_RANGES_AIR_IDS: &[usize] = &[17];
-||||||| parent of dee8e3cd (replace the emulator)
-pub const KECCAKF_AIR_IDS: &[usize] = &[17];
-=======
-pub const BINARY_EXTENSION_AIR_IDS: &[usize] = &[17];
->>>>>>> dee8e3cd (replace the emulator)
+pub const ARITH_EQ_AIR_IDS: &[usize] = &[17];
 
-<<<<<<< HEAD
-pub const VIRTUAL_TABLE_0_AIR_IDS: &[usize] = &[18];
-||||||| parent of dee8e3cd (replace the emulator)
-pub const KECCAKF_TABLE_AIR_IDS: &[usize] = &[18];
-=======
-pub const BINARY_EXTENSION_TABLE_AIR_IDS: &[usize] = &[18];
->>>>>>> dee8e3cd (replace the emulator)
+pub const ARITH_EQ_384_AIR_IDS: &[usize] = &[18];
 
-<<<<<<< HEAD
-pub const VIRTUAL_TABLE_1_AIR_IDS: &[usize] = &[19];
-||||||| parent of dee8e3cd (replace the emulator)
-pub const SHA_256_F_AIR_IDS: &[usize] = &[19];
+pub const KECCAKF_AIR_IDS: &[usize] = &[19];
 
-pub const SPECIFIED_RANGES_AIR_IDS: &[usize] = &[20];
-=======
-pub const ARITH_EQ_AIR_IDS: &[usize] = &[19];
+pub const SHA_256_F_AIR_IDS: &[usize] = &[20];
 
-pub const ARITH_EQ_LT_TABLE_AIR_IDS: &[usize] = &[20];
+pub const SPECIFIED_RANGES_AIR_IDS: &[usize] = &[21];
 
-pub const KECCAKF_AIR_IDS: &[usize] = &[21];
+pub const VIRTUAL_TABLE_0_AIR_IDS: &[usize] = &[22];
 
-pub const KECCAKF_TABLE_AIR_IDS: &[usize] = &[22];
-
-pub const SHA_256_F_AIR_IDS: &[usize] = &[23];
-
-pub const SPECIFIED_RANGES_AIR_IDS: &[usize] = &[24];
->>>>>>> dee8e3cd (replace the emulator)
+pub const VIRTUAL_TABLE_1_AIR_IDS: &[usize] = &[23];
 
 
 //PUBLICS
@@ -230,15 +148,6 @@ trace!(PoseidonPermuterFixed<F> {
  __L1__: F,
 },  0, 2, 2097152 );
 
-<<<<<<< HEAD
-trace!(MemTrace<F> {
- addr: F, step: F, sel: F, addr_changes: F, step_dual: F, sel_dual: F, value: [F; 2], wr: F, previous_step: F, increment: [F; 2], read_same_addr: F,
-},  0, 2, 4194304 );
-||||||| parent of dee8e3cd (replace the emulator)
-trace!(MemTrace<F> {
- addr: F, step: F, sel: F, addr_changes: F, value: [F; 2], wr: F, increment: [F; 2], read_same_addr: F,
-},  0, 2, 4194304 );
-=======
 trace!(PoseidonPermuterTrace<F> {
  sel: F, state: [F; 12], round: F, last_round: F, input: [F; 12], full_round: F,
 },  0, 2, 2097152 );
@@ -258,7 +167,6 @@ trace!(AccountsResultFixed<F> {
 trace!(AccountsResultTrace<F> {
  addr: F, val: [F; 2], val_init: [F; 2], val_wr: [F; 2], sel_wr: F, hash_accum: [F; 12],
 },  0, 4, 2097152 );
->>>>>>> dee8e3cd (replace the emulator)
 
 trace!(RomDataFixed<F> {
  SEGMENT_L1: F, __L1__: F,
@@ -273,7 +181,7 @@ trace!(MemFixed<F> {
 },  0, 6, 4194304 );
 
 trace!(MemTrace<F> {
- addr: F, step: F, sel: F, addr_changes: F, value: [F; 2], wr: F, increment: [F; 2], read_same_addr: F,
+ addr: F, step: F, sel: F, addr_changes: F, step_dual: F, sel_dual: F, value: [F; 2], wr: F, previous_step: F, increment: [F; 2], read_same_addr: F,
 },  0, 6, 4194304 );
 
 trace!(AccountDataFixed<F> {
@@ -294,119 +202,43 @@ trace!(InputDataTrace<F> {
 
 trace!(MemAlignFixed<F> {
  L1: F, __L1__: F,
-<<<<<<< HEAD
-},  0, 5, 2097152 );
-||||||| parent of dee8e3cd (replace the emulator)
-},  0, 5, 4194304 );
-=======
-},  0, 9, 4194304 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 9, 2097152 );
 
 trace!(MemAlignTrace<F> {
  addr: F, offset: F, width: F, wr: F, pc: F, reset: F, sel_up_to_down: F, sel_down_to_up: F, reg: [F; 8], sel: [F; 8], step: F, delta_addr: F, sel_prove: F, value: [F; 2],
-<<<<<<< HEAD
-},  0, 5, 2097152 );
-||||||| parent of dee8e3cd (replace the emulator)
-},  0, 5, 4194304 );
-=======
-},  0, 9, 4194304 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 9, 2097152 );
 
-<<<<<<< HEAD
 trace!(MemAlignByteFixed<F> {
  __L1__: F,
-},  0, 6, 4194304 );
-||||||| parent of dee8e3cd (replace the emulator)
-trace!(MemAlignRomFixed<F> {
- OFFSET: F, WIDTH: F, PC: F, DELTA_PC: F, DELTA_ADDR: F, FLAGS: F, __L1__: F,
-},  0, 6, 256 );
-=======
-trace!(MemAlignRomFixed<F> {
- OFFSET: F, WIDTH: F, PC: F, DELTA_PC: F, DELTA_ADDR: F, FLAGS: F, __L1__: F,
-},  0, 10, 256 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 10, 4194304 );
 
-<<<<<<< HEAD
 trace!(MemAlignByteTrace<F> {
  sel_high_4b: F, sel_high_2b: F, sel_high_b: F, direct_value: F, composed_value: F, written_composed_value: F, written_byte_value: F, value_16b: F, value_8b: F, byte_value: F, addr_w: F, step: F, is_write: F, mem_write_values: [F; 2], bus_byte: F,
-},  0, 6, 4194304 );
+},  0, 10, 4194304 );
 
 trace!(MemAlignReadByteFixed<F> {
  __L1__: F,
-},  0, 7, 4194304 );
+},  0, 11, 4194304 );
 
 trace!(MemAlignReadByteTrace<F> {
  sel_high_4b: F, sel_high_2b: F, sel_high_b: F, direct_value: F, composed_value: F, value_16b: F, value_8b: F, byte_value: F, addr_w: F, step: F,
-},  0, 7, 4194304 );
+},  0, 11, 4194304 );
 
 trace!(MemAlignWriteByteFixed<F> {
  __L1__: F,
-},  0, 8, 4194304 );
+},  0, 12, 4194304 );
 
 trace!(MemAlignWriteByteTrace<F> {
  sel_high_4b: F, sel_high_2b: F, sel_high_b: F, direct_value: F, composed_value: F, written_composed_value: F, written_byte_value: F, value_16b: F, value_8b: F, byte_value: F, addr_w: F, step: F, mem_write_values: [F; 2],
-},  0, 8, 4194304 );
-||||||| parent of dee8e3cd (replace the emulator)
-trace!(MemAlignRomTrace<F> {
- multiplicity: F,
-},  0, 6, 256 );
-=======
-trace!(MemAlignRomTrace<F> {
- multiplicity: F,
-},  0, 10, 256 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 12, 4194304 );
 
 trace!(ArithFixed<F> {
  __L1__: F,
-<<<<<<< HEAD
-},  0, 9, 2097152 );
-||||||| parent of dee8e3cd (replace the emulator)
-},  0, 7, 2097152 );
-=======
-},  0, 11, 2097152 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 13, 2097152 );
 
 trace!(ArithTrace<F> {
  carry: [F; 7], a: [F; 4], b: [F; 4], c: [F; 4], d: [F; 4], na: F, nb: F, nr: F, np: F, sext: F, m32: F, div: F, fab: F, na_fb: F, nb_fa: F, main_div: F, main_mul: F, signed: F, div_by_zero: F, div_overflow: F, inv_sum_all_bs: F, op: F, bus_res1: F, multiplicity: F, range_ab: F, range_cd: F,
-<<<<<<< HEAD
-},  0, 9, 2097152 );
-||||||| parent of dee8e3cd (replace the emulator)
-},  0, 7, 2097152 );
-
-trace!(ArithTableFixed<F> {
- OP: F, FLAGS: F, RANGE_AB: F, RANGE_CD: F, __L1__: F,
-},  0, 8, 128 );
-
-trace!(ArithTableTrace<F> {
- multiplicity: F,
-},  0, 8, 128 );
-
-trace!(ArithRangeTableFixed<F> {
- RANGE_ID: F, RANGE_VALUES: F, __L1__: F,
-},  0, 9, 4194304 );
-
-trace!(ArithRangeTableTrace<F> {
- multiplicity: F,
-},  0, 9, 4194304 );
-=======
-},  0, 11, 2097152 );
-
-trace!(ArithTableFixed<F> {
- OP: F, FLAGS: F, RANGE_AB: F, RANGE_CD: F, __L1__: F,
-},  0, 12, 128 );
-
-trace!(ArithTableTrace<F> {
- multiplicity: F,
-},  0, 12, 128 );
-
-trace!(ArithRangeTableFixed<F> {
- RANGE_ID: F, RANGE_VALUES: F, __L1__: F,
-},  0, 13, 4194304 );
-
-trace!(ArithRangeTableTrace<F> {
- multiplicity: F,
-},  0, 13, 4194304 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 13, 2097152 );
 
 trace!(BinaryFixed<F> {
  __L1__: F,
@@ -424,207 +256,69 @@ trace!(BinaryAddTrace<F> {
  a: [F; 2], b: [F; 2], c_chunks: [F; 4], cout: [F; 2], multiplicity: F,
 },  0, 15, 4194304 );
 
-<<<<<<< HEAD
-||||||| parent of dee8e3cd (replace the emulator)
-trace!(BinaryTableFixed<F> {
- A: F, B: F, LAST: F, CIN: F, OP: F, C: F, FLAGS: F, __L1__: F,
-},  0, 12, 8388608 );
-
-trace!(BinaryTableTrace<F> {
- multiplicity: F,
-},  0, 12, 8388608 );
-
-=======
-trace!(BinaryTableFixed<F> {
- A: F, B: F, LAST: F, CIN: F, OP: F, C: F, FLAGS: F, __L1__: F,
-},  0, 16, 8388608 );
-
-trace!(BinaryTableTrace<F> {
- multiplicity: F,
-},  0, 16, 8388608 );
-
->>>>>>> dee8e3cd (replace the emulator)
 trace!(BinaryExtensionFixed<F> {
  __L1__: F,
-<<<<<<< HEAD
-},  0, 12, 4194304 );
-||||||| parent of dee8e3cd (replace the emulator)
-},  0, 13, 4194304 );
-=======
-},  0, 17, 4194304 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 16, 4194304 );
 
 trace!(BinaryExtensionTrace<F> {
  op: F, in1: [F; 8], in2_low: F, out: [[F; 2]; 8], op_is_shift: F, in2: [F; 2], multiplicity: F,
-<<<<<<< HEAD
-},  0, 12, 4194304 );
-||||||| parent of dee8e3cd (replace the emulator)
-},  0, 13, 4194304 );
-
-trace!(BinaryExtensionTableFixed<F> {
- A: F, OFFSET: F, B: F, OP_IS_SHIFT: F, OP: F, C0: F, C1: F, __L1__: F,
-},  0, 14, 4194304 );
-
-trace!(BinaryExtensionTableTrace<F> {
- multiplicity: F,
-},  0, 14, 4194304 );
-=======
-},  0, 17, 4194304 );
-
-trace!(BinaryExtensionTableFixed<F> {
- A: F, OFFSET: F, B: F, OP_IS_SHIFT: F, OP: F, C0: F, C1: F, __L1__: F,
-},  0, 18, 4194304 );
-
-trace!(BinaryExtensionTableTrace<F> {
- multiplicity: F,
-},  0, 18, 4194304 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 16, 4194304 );
 
 trace!(ArithEqFixed<F> {
-<<<<<<< HEAD
  CLK_0: F, __L1__: F,
-},  0, 13, 1048576 );
-||||||| parent of dee8e3cd (replace the emulator)
- CLK_0: F, CHUNK_ID: F, __L1__: F,
-},  0, 15, 2097152 );
-=======
- CLK_0: F, CHUNK_ID: F, __L1__: F,
-},  0, 19, 2097152 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 17, 1048576 );
 
 trace!(ArithEqTrace<F> {
  x1: F, y1: F, x2: F, y2: F, x3: F, y3: F, q0: F, q1: F, q2: F, s: F, sel_op: [F; 9], sel_op_clk0: [F; 9], x_delta_chunk_inv: F, x_are_different: F, x3_lt: F, y3_lt: F, carry: [[F; 2]; 3], step_addr: F,
-<<<<<<< HEAD
-},  0, 13, 1048576 );
-||||||| parent of dee8e3cd (replace the emulator)
-},  0, 15, 2097152 );
-=======
-},  0, 19, 2097152 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 17, 1048576 );
 
-<<<<<<< HEAD
 trace!(ArithEq384Fixed<F> {
  CLK_0: F, __L1__: F,
-},  0, 14, 1048576 );
-||||||| parent of dee8e3cd (replace the emulator)
-trace!(ArithEqLtTableFixed<F> {
- LT_T: F, DELTA: F, __L1__: F,
-},  0, 16, 262144 );
-=======
-trace!(ArithEqLtTableFixed<F> {
- LT_T: F, DELTA: F, __L1__: F,
-},  0, 20, 262144 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 18, 1048576 );
 
-<<<<<<< HEAD
 trace!(ArithEq384Trace<F> {
  x1: F, y1: F, x2: F, y2: F, x3: F, y3: F, q0: F, q1: F, q2: F, s: F, sel_op: [F; 6], sel_op_clk0: [F; 6], x_delta_chunk_inv: F, x_are_different: F, x3_lt: F, y3_lt: F, carry: [[F; 2]; 3], step_addr: F,
-},  0, 14, 1048576 );
-||||||| parent of dee8e3cd (replace the emulator)
-trace!(ArithEqLtTableTrace<F> {
- multiplicity: F,
-},  0, 16, 262144 );
-=======
-trace!(ArithEqLtTableTrace<F> {
- multiplicity: F,
-},  0, 20, 262144 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 18, 1048576 );
 
 trace!(KeccakfFixed<F> {
  L1: F, GATE_OP: F, CONN_A: F, CONN_B: F, CONN_C: F, CONN_D: F, ID: F, LATCH_NUM_KECCAKF: F, FACTOR_NUM_KECCAKF: F, CLK_0: F, __L1__: F,
-<<<<<<< HEAD
-},  0, 15, 2097152 );
-||||||| parent of dee8e3cd (replace the emulator)
-},  0, 17, 2097152 );
-=======
-},  0, 21, 2097152 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 19, 2097152 );
 
 trace!(KeccakfTrace<F> {
  free_in_a: [F; 9], free_in_b: [F; 9], free_in_c: [F; 9], free_in_d: [F; 9], bit: [F; 4], val: [F; 4], step_addr: F, in_use_clk_0: F, in_use: F,
-<<<<<<< HEAD
-},  0, 15, 2097152 );
-||||||| parent of dee8e3cd (replace the emulator)
-},  0, 17, 2097152 );
-
-trace!(KeccakfTableFixed<F> {
- A: [F; 1], B: F, C: F, GATE_OP: F, D: [F; 1], __L1__: F,
-},  0, 18, 4194304 );
-
-trace!(KeccakfTableTrace<F> {
- multiplicity: [F; 1],
-},  0, 18, 4194304 );
-=======
-},  0, 21, 2097152 );
-
-trace!(KeccakfTableFixed<F> {
- A: [F; 1], B: F, C: F, GATE_OP: F, D: [F; 1], __L1__: F,
-},  0, 22, 4194304 );
-
-trace!(KeccakfTableTrace<F> {
- multiplicity: [F; 1],
-},  0, 22, 4194304 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 19, 2097152 );
 
 trace!(Sha256fFixed<F> {
  CLK_0: F, __L1__: F,
-<<<<<<< HEAD
-},  0, 16, 262144 );
-||||||| parent of dee8e3cd (replace the emulator)
-},  0, 19, 262144 );
-=======
-},  0, 23, 262144 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 20, 262144 );
 
 trace!(Sha256fTrace<F> {
  a: [F; 32], e: [F; 32], w: [F; 32], new_a_carry_bits: F, new_e_carry_bits: F, new_w_carry_bits: F, step_addr: F, in_use_clk_0: F, in_use: F,
-<<<<<<< HEAD
-},  0, 16, 262144 );
-||||||| parent of dee8e3cd (replace the emulator)
-},  0, 19, 262144 );
-=======
-},  0, 23, 262144 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 20, 262144 );
 
 trace!(SpecifiedRangesFixed<F> {
-<<<<<<< HEAD
  RANGE: [F; 19], __L1__: F,
-},  0, 17, 2097152 );
-||||||| parent of dee8e3cd (replace the emulator)
- RANGE: [F; 18], __L1__: F,
-},  0, 20, 2097152 );
-=======
- RANGE: [F; 18], __L1__: F,
-},  0, 24, 2097152 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 21, 2097152 );
 
 trace!(SpecifiedRangesTrace<F> {
-<<<<<<< HEAD
  mul: [F; 19],
-},  0, 17, 2097152 );
+},  0, 21, 2097152 );
 
 trace!(VirtualTable0Fixed<F> {
  UID: [F; 11], column: [F; 63], __L1__: F,
-},  0, 18, 2097152 );
+},  0, 22, 2097152 );
 
 trace!(VirtualTable0Trace<F> {
  multiplicity: [F; 11],
-},  0, 18, 2097152 );
+},  0, 22, 2097152 );
 
 trace!(VirtualTable1Fixed<F> {
  UID: [F; 8], column: [F; 64], __L1__: F,
-},  0, 19, 2097152 );
+},  0, 23, 2097152 );
 
 trace!(VirtualTable1Trace<F> {
  multiplicity: [F; 8],
-},  0, 19, 2097152 );
-||||||| parent of dee8e3cd (replace the emulator)
- mul: [F; 18],
-},  0, 20, 2097152 );
-=======
- mul: [F; 18],
-},  0, 24, 2097152 );
->>>>>>> dee8e3cd (replace the emulator)
+},  0, 23, 2097152 );
 
 trace!(RomRomTrace<F> {
  line: F, a_offset_imm0: F, a_imm1: F, b_offset_imm0: F, b_imm1: F, ind_width: F, op: F, store_offset: F, jmp_offset1: F, jmp_offset2: F, flags: F,

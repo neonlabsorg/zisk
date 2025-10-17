@@ -13,7 +13,7 @@ pub const SECP256K1_ADD_MEM_CONFIG: ArithEqMemInputConfig = ArithEqMemInputConfi
 };
 
 pub fn generate_secp256k1_add_mem_inputs(
-    addr_main: u32,
+    addr_main: u64,
     step_main: u64,
     data: &[u64],
     only_counters: bool,
@@ -37,7 +37,7 @@ pub fn generate_secp256k1_add_mem_inputs(
 }
 
 pub fn skip_secp256k1_add_mem_inputs(
-    addr_main: u32,
+    addr_main: u64,
     data: &[u64],
     mem_collectors_info: &[MemCollectorInfo],
 ) -> bool {

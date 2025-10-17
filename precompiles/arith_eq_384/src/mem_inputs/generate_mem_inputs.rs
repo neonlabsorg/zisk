@@ -12,7 +12,7 @@ pub struct ArithEq384MemInputConfig {
     pub chunks_per_param: usize,
 }
 pub fn generate_mem_inputs(
-    addr_main: u32,
+    addr_main: u64,
     step_main: u64,
     data: &[u64],
     write_data: Option<&[u64]>,
@@ -25,7 +25,7 @@ pub fn generate_mem_inputs(
 
     for iparam in 0..config.indirect_params {
         MemBusHelpers::mem_aligned_load(
-            addr_main + iparam as u32 * 8,
+            addr_main + iparam as u64 * 8,
             step_main,
             data[OPERATION_BUS_DATA_SIZE + iparam],
             pending,
@@ -39,9 +39,9 @@ pub fn generate_mem_inputs(
         };
         let param_addr = if config.indirect_params > 0 {
             // read indirect parameters, means stored the address of parameter
-            data[OPERATION_BUS_DATA_SIZE + param_index] as u32
+            data[OPERATION_BUS_DATA_SIZE + param_index]
         } else {
-            addr_main + (param_index * 8 * config.chunks_per_param) as u32
+            addr_main + (param_index * 8 * config.chunks_per_param) as u64
         };
 
         // read/write all chunks of the iparam parameter
@@ -62,7 +62,7 @@ pub fn generate_mem_inputs(
                 data[current_param_offset + ichunk]
             };
             MemBusHelpers::mem_aligned_op(
-                param_addr + ichunk as u32 * 8,
+                param_addr + ichunk as u64 * 8,
                 step_main,
                 chunk_data,
                 is_write,
@@ -73,7 +73,7 @@ pub fn generate_mem_inputs(
 }
 
 pub fn skip_mem_inputs(
-    addr_main: u32,
+    addr_main: u64,
     data: &[u64],
     config: &ArithEq384MemInputConfig,
     mem_collectors_info: &[MemCollectorInfo],
@@ -82,7 +82,7 @@ pub fn skip_mem_inputs(
 
     // Check indirect loads
     for iparam in 0..config.indirect_params {
-        let addr = addr_main + iparam as u32 * 8;
+        let addr = addr_main + iparam as u64 * 8;
         for mem_collector in mem_collectors_info {
             let addr_w = MemHelpers::get_addr_w(addr);
             if !mem_collector.skip(addr_w) {
@@ -98,12 +98,12 @@ pub fn skip_mem_inputs(
             iparam
         };
         let param_addr = if config.indirect_params > 0 {
-            data[OPERATION_BUS_DATA_SIZE + param_index] as u32
+            data[OPERATION_BUS_DATA_SIZE + param_index]
         } else {
-            addr_main + (param_index * 8 * config.chunks_per_param) as u32
+            addr_main + (param_index * 8 * config.chunks_per_param) as u64
         };
         for ichunk in 0..config.chunks_per_param {
-            let addr = param_addr + ichunk as u32 * 8;
+            let addr = param_addr + ichunk as u64 * 8;
             for mem_collector in mem_collectors_info {
                 let addr_w = MemHelpers::get_addr_w(addr);
                 if !mem_collector.skip(addr_w) {

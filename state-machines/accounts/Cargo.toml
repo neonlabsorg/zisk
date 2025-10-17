@@ -17,4 +17,5 @@ solana-account.workspace = true
 fields = { workspace=true }
 zisk-pil = { path = "../../pil" }
 proofman-common.workspace = true
-sm-mem = { version = "0.10.0", path = "../mem" }
+sm-mem = { path = "../mem" }
+mem-common = { path = "../mem-common" }

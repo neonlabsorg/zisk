@@ -115,13 +115,13 @@ impl BusDevice<u64> for Sha256fCounterInputGen {
         }
 
         if let Some(mem_collectors_info) = mem_collector_info {
-            if skip_sha256f_mem_inputs(data[B] as u32, data, mem_collectors_info) {
+            if skip_sha256f_mem_inputs(data[B], data, mem_collectors_info) {
                 return true;
             }
         }
 
         let step_main = data[A];
-        let addr_main = data[B] as u32;
+        let addr_main = data[B];
 
         let only_counters = self.mode == BusDeviceMode::Counter;
         if only_counters {

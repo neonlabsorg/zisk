@@ -1,12 +1,12 @@
 use std::{collections::BTreeMap, sync::{atomic::{AtomicBool, AtomicU32}, Arc}};
 
 use sbpf_parser::mem::TxInput;
-use sm_mem::MEMORY_LOAD_OP;
+use mem_common::MemHelpers;
 
-use zisk_common::{ BusDevice, BusDeviceMetrics, BusId, CheckPoint, ChunkId, InstanceType, MemBusData, Plan, Planner, MEM_BUS_ID};
+use zisk_common::{ BusDevice, BusDeviceMetrics, BusId, CheckPoint, ChunkId, InstanceType, MemBusData, MemCollectorInfo, Plan, Planner, MEM_BUS_ID};
 use zisk_pil::{AccountsInitTrace, AccountsInitTraceRow, ACCOUNTS_INIT_AIR_IDS, ZISK_AIRGROUP_ID};
 
-use proofman_common::{AirInstance, FromTrace, PreCalculate};
+use proofman_common::{AirInstance, FromTrace};
 
 use fields::PrimeField64;
 
@@ -137,6 +137,10 @@ impl<F: PrimeField64> Instance<F> for AccountsInitInstance<F> {
     {
         Some(Box::new(AccountsInitCounter{stats: self.sm.stats.clone() }))
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 pub struct AccountsInitCounter {
@@ -157,10 +161,11 @@ impl BusDevice<u64> for AccountsInitCounter {
             bus_id: &BusId,
             data: &[u64],
             _pending: &mut std::collections::VecDeque<(BusId, Vec<u64>)>,
+            _mem_collector_info: Option<&[MemCollectorInfo]>,
         ) -> bool
     {
         debug_assert!(*bus_id == MEM_BUS_ID );
-        if MemBusData::get_op(data) == MEMORY_LOAD_OP {
+        if !MemHelpers::is_write(MemBusData::get_op(data)) {
             let addr = MemBusData::get_addr(data);
             if let Some(stats) = self.stats.get(&(addr as u64)) {
                 stats.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -186,8 +191,8 @@ impl Planner for AccountsInitPlanner {
             None,
             InstanceType::Instance,
             CheckPoint::Multiple(vec_chunk_ids),
-            PreCalculate::Slow,
             None,
+            1,
         )]
     }
 }

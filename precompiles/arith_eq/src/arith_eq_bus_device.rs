@@ -73,7 +73,7 @@ impl ArithEqCounterInputGen {
     }
 
     fn skip_data(&self, data: &[u64], mem_collectors_info: &[MemCollectorInfo]) -> bool {
-        let addr_main = data[B] as u32;
+        let addr_main = data[B];
 
         match data[OP] as u8 {
             ARITH256_OP => skip_arith256_mem_inputs(addr_main, data, mem_collectors_info),
@@ -176,7 +176,7 @@ impl BusDevice<u64> for ArithEqCounterInputGen {
 
         let op = data[OP] as u8;
         let step_main = data[A];
-        let addr_main = data[B] as u32;
+        let addr_main = data[B];
 
         let only_counters = self.mode == BusDeviceMode::Counter;
         if only_counters {

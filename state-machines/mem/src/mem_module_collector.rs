@@ -26,17 +26,11 @@ pub struct MemModuleCollector {
     /// Collected inputs
     pub inputs: Vec<MemInput>,
     pub prev_segment: Option<MemPreviousSegment>,
-<<<<<<< HEAD
-    pub min_addr: u32,
-    pub filter_min_addr: u32,
-    pub filter_max_addr: u32,
-    pub aligned_min_addr: u32,
-    pub aligned_max_addr: u32,
-||||||| parent of dee8e3cd (replace the emulator)
-    pub min_addr: u32,
-=======
     pub min_addr: u64,
->>>>>>> dee8e3cd (replace the emulator)
+    pub filter_min_addr: u64,
+    pub filter_max_addr: u64,
+    pub aligned_min_addr: u64,
+    pub aligned_max_addr: u64,
     pub _segment_id: SegmentId,
     pub count: u32,
     pub to_count: u32,
@@ -83,7 +77,6 @@ impl MemModuleCollector {
         }
     }
 
-<<<<<<< HEAD
     fn update_state(state: DualState, is_write: bool) -> DualState {
         if is_write {
             DualState::Write
@@ -95,43 +88,14 @@ impl MemModuleCollector {
         }
     }
 
-    fn discard_align_addr(&mut self, addr_w: u32) -> bool {
-||||||| parent of dee8e3cd (replace the emulator)
-    /// Discards the given memory access if it is not part of the current segment.
-    ///
-    /// This function checks whether the given memory access (defined by `addr`, `step`, and `value`)
-    /// should be discarded. If the access is not part of the current segment, the function returns `true`.
-    ///
-    /// # Parameters
-    /// - `addr`: The memory address (8 bytes aligned).
-    /// - `step`: The mem_step of the memory access.
-    /// - `value`: The value to be read or written.
-    ///
-    /// # Returns
-    /// `true` if the access should be discarded, `false` otherwise.
-    fn discart_addr_step(&mut self, addr_w: u32, step: u64, value: u64) -> bool {
-=======
-    /// Discards the given memory access if it is not part of the current segment.
-    ///
-    /// This function checks whether the given memory access (defined by `addr`, `step`, and `value`)
-    /// should be discarded. If the access is not part of the current segment, the function returns `true`.
-    ///
-    /// # Parameters
-    /// - `addr`: The memory address (8 bytes aligned).
-    /// - `step`: The mem_step of the memory access.
-    /// - `value`: The value to be read or written.
-    ///
-    /// # Returns
-    /// `true` if the access should be discarded, `false` otherwise.
-    fn discart_addr_step(&mut self, addr_w: u64, step: u64, value: u64) -> bool {
->>>>>>> dee8e3cd (replace the emulator)
+    fn discard_align_addr(&mut self, addr_w: u64) -> bool {
         // Check if the address is out of the range of the current checkpoint, or
         // out of memory area.
         addr_w < self.aligned_min_addr || addr_w > self.filter_max_addr
     }
 
     #[inline(always)]
-    fn action_addr(&mut self, addr_w: u32, is_write: bool) -> InputAction {
+    fn action_addr(&mut self, addr_w: u64, is_write: bool) -> InputAction {
         if self.is_dual {
             self.dual_action_addr(addr_w, is_write)
         } else {
@@ -156,7 +120,7 @@ impl MemModuleCollector {
     /// # IMPORTANT
     /// - after each non_dual_action_addr call, we need to call process_addr_action
     /// - assumes called previously the discard_align_addr to check if is out of range
-    fn non_dual_action_addr(&mut self, addr_w: u32) -> InputAction {
+    fn non_dual_action_addr(&mut self, addr_w: u64) -> InputAction {
         if addr_w == self.mem_check_point.from_addr && self.skip > 0 {
             self.skip -= 1;
             if self.skip == 0 && self.is_first_chunk_of_segment {
@@ -195,7 +159,7 @@ impl MemModuleCollector {
     /// # IMPORTANT
     /// - after each dual_action_addr call, we need to call process_addr_action
     /// - assumes called previously the discard_align_addr to check if is out of range
-    fn dual_action_addr(&mut self, addr_w: u32, is_write: bool) -> InputAction {
+    fn dual_action_addr(&mut self, addr_w: u64, is_write: bool) -> InputAction {
         if addr_w == self.mem_check_point.from_addr && self.skip > 0 {
             // skip > 1 && !is_first_chunk
             //     ST_INI + X => ST_X, Discard
@@ -292,7 +256,7 @@ impl MemModuleCollector {
     /// - `bytes`: The number of bytes in the memory access.
     /// - `is_write`: Whether this is a write operation (true) or read operation (false).
     /// - `data`: The data associated with the memory access.
-    fn process_unaligned_data(&mut self, addr: u32, bytes: u8, data: &[u64]) {
+    fn process_unaligned_data(&mut self, addr: u64, bytes: u8, data: &[u64]) {
         let addr_w = MemHelpers::get_addr_w(addr);
         if MemHelpers::is_double(addr, bytes) {
             let discard_addr_1 = self.discard_align_addr(addr_w);
@@ -336,7 +300,7 @@ impl MemModuleCollector {
     /// # Parameters
     /// - `addr_w`: The memory address (aligned to 8 bytes).
     /// - `data`: The data associated with the memory access.
-    fn process_unaligned_single_read(&mut self, addr_w: u32, data: &[u64]) {
+    fn process_unaligned_single_read(&mut self, addr_w: u64, data: &[u64]) {
         let action = self.action_addr(addr_w, false);
         if action == InputAction::Discard {
             return;
@@ -357,7 +321,7 @@ impl MemModuleCollector {
     /// - `addr_w`: The memory address (aligned to 8 bytes).
     /// - `bytes`: The number of bytes to be written.
     /// - `data`: The data associated with the memory access.
-    fn process_unaligned_single_write(&mut self, addr_w: u32, bytes: u8, data: &[u64]) {
+    fn process_unaligned_single_write(&mut self, addr_w: u64, bytes: u8, data: &[u64]) {
         let action_read = self.action_addr(addr_w, false);
         let step = MemBusData::get_step(data);
         let read_values = MemBusData::get_mem_values(data);
@@ -388,7 +352,7 @@ impl MemModuleCollector {
     /// - `data`: The data associated with the memory access.
     fn process_unaligned_double_read(
         &mut self,
-        addr_w: u32,
+        addr_w: u64,
         data: &[u64],
         discard_addr_1: bool,
         discard_addr_2: bool,
@@ -418,7 +382,7 @@ impl MemModuleCollector {
     /// - `data`: The data associated with the memory access.
     fn process_unaligned_double_write(
         &mut self,
-        addr_w: u32,
+        addr_w: u64,
         bytes: u8,
         data: &[u64],
         discard_addr_1: bool,
@@ -458,7 +422,7 @@ impl MemModuleCollector {
     #[inline(always)]
     fn process_addr_action(
         &mut self,
-        addr_w: u32,
+        addr_w: u64,
         step: u64,
         value: u64,
         is_write: bool,
@@ -474,7 +438,7 @@ impl MemModuleCollector {
             }
         }
     }
-    fn bus_data_to_input(&mut self, addr: u32, data: &[u64]) {
+    fn bus_data_to_input(&mut self, addr: u64, data: &[u64]) {
         // decoding information in bus
 
         let bytes = MemBusData::get_bytes(data);
@@ -527,7 +491,7 @@ impl BusDevice<u64> for MemModuleCollector {
 
         let addr = MemBusData::get_addr(data);
         let bytes = MemBusData::get_bytes(data);
-        if (addr + bytes as u32) > self.filter_min_addr && addr <= self.filter_max_addr {
+        if (addr + bytes as u64) > self.filter_min_addr && addr <= self.filter_max_addr {
             self.bus_data_to_input(addr, data);
         }
         true

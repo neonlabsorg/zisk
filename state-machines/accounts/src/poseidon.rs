@@ -159,6 +159,10 @@ struct PoseidonInstance<F: PrimeField64> {
 }
 
 impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     fn instance_type(&self) -> InstanceType {
         InstanceType::Instance
     }
@@ -250,8 +254,8 @@ impl zisk_common::Planner for PoseidonPlanner {
             None,
             zisk_common::InstanceType::Table,
             CheckPoint::Multiple(vec_chunk_ids),
-            proofman_common::PreCalculate::None,
             None,
+            1,
         )]
     }
 }

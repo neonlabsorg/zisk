@@ -38,20 +38,6 @@ pub fn rom_full_setup(
     tracing::info!("Computing ELF hash");
     let elf_hash = get_elf_data_hash(elf)?;
 
-<<<<<<< HEAD
-    // Assembly setup is not needed on macOS due to the lack of support for assembly generation.
-    #[cfg(not(target_os = "macos"))]
-    {
-        tracing::info!("Computing assembly setup");
-        crate::generate_assembly(elf, &elf_hash, zisk_path, output_path.as_path(), verbose)?;
-    }
-
-||||||| parent of dee8e3cd (replace the emulator)
-    tracing::info!("Computing assembly setup");
-    crate::generate_assembly(elf, &elf_hash, zisk_path, output_path.as_path(), verbose)?;
-
-=======
->>>>>>> dee8e3cd (replace the emulator)
     tracing::info!("Computing merkle root");
     crate::rom_merkle_setup(elf, &elf_hash, output_path.as_path(), proving_key, false)?;
 

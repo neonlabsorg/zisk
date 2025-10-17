@@ -41,19 +41,6 @@ pub struct RomInstance {
     /// Execution statistics counter for ROM instructions.
     counter_stats: Mutex<Option<CounterStats>>,
 
-<<<<<<< HEAD
-    /// Optional handle for the ROM assembly runner thread.
-    handle_rh: Mutex<Option<JoinHandle<AsmRunnerRH>>>,
-
-    /// Cached result from the assembly runner thread.
-    asm_result: Mutex<Option<AsmRunnerRH>>,
-
-||||||| parent of dee8e3cd (replace the emulator)
-    /// Optional handle for the ROM assembly runner thread.
-    handle_rh: Mutex<Option<JoinHandle<AsmRunnerRH>>>,
-
-=======
->>>>>>> dee8e3cd (replace the emulator)
     calculated: AtomicBool,
 }
 
@@ -78,28 +65,16 @@ impl RomInstance {
             bios_inst_count: Mutex::new(bios_inst_count),
             prog_inst_count: Mutex::new(prog_inst_count),
             counter_stats: Mutex::new(None),
-<<<<<<< HEAD
-            handle_rh: Mutex::new(handle_rh),
-            asm_result: Mutex::new(None),
-||||||| parent of dee8e3cd (replace the emulator)
-            handle_rh: Mutex::new(handle_rh),
-=======
->>>>>>> dee8e3cd (replace the emulator)
             calculated: AtomicBool::new(false),
         }
     }
-<<<<<<< HEAD
 
     pub fn skip_collector(&self) -> bool {
-        self.is_asm_execution() || self.counter_stats.lock().unwrap().is_some()
-    }
-
-    pub fn is_asm_execution(&self) -> bool {
-        self.handle_rh.lock().unwrap().is_some() || self.asm_result.lock().unwrap().is_some()
+        self.counter_stats.lock().unwrap().is_some()
     }
 
     pub fn build_rom_collector(&self, _chunk_id: ChunkId) -> Option<RomCollector> {
-        if self.is_asm_execution() || self.counter_stats.lock().unwrap().is_some() {
+        if self.counter_stats.lock().unwrap().is_some() {
             return None;
         }
 
@@ -109,13 +84,6 @@ impl RomInstance {
             self.prog_inst_count.lock().unwrap().clone(),
         ))
     }
-||||||| parent of dee8e3cd (replace the emulator)
-
-    pub fn is_asm_execution(&self) -> bool {
-        self.handle_rh.lock().unwrap().is_some()
-    }
-=======
->>>>>>> dee8e3cd (replace the emulator)
 }
 
 impl<F: PrimeField64> Instance<F> for RomInstance {
@@ -139,55 +107,6 @@ impl<F: PrimeField64> Instance<F> for RomInstance {
         collectors: Vec<(usize, Box<dyn BusDevice<PayloadType>>)>,
         trace_buffer: Vec<F>,
     ) -> Option<AirInstance<F>> {
-<<<<<<< HEAD
-        // Case 1: Use ROM assembly output
-        if self.is_asm_execution() {
-            // Check if we already have the result cached
-            if self.asm_result.lock().unwrap().is_none() {
-                // Join the thread and cache the result
-                let handle_rh = self.handle_rh.lock().unwrap().take().unwrap();
-                let result_rh =
-                    handle_rh.join().expect("Error during Rom Histogram thread execution");
-                *self.asm_result.lock().unwrap() = Some(result_rh);
-            }
-
-            // Use the cached result
-            let asm_result = self.asm_result.lock().unwrap();
-            let result_rh = asm_result.as_ref().unwrap();
-
-            *self.bios_inst_count.lock().unwrap() =
-                Arc::new(create_atomic_vec(result_rh.asm_rowh_output.bios_inst_count.len()));
-            *self.prog_inst_count.lock().unwrap() =
-                Arc::new(create_atomic_vec(result_rh.asm_rowh_output.prog_inst_count.len()));
-
-            return Some(RomSM::compute_witness_from_asm(
-                &self.zisk_rom,
-                &result_rh.asm_rowh_output,
-                trace_buffer,
-            ));
-        }
-
-||||||| parent of dee8e3cd (replace the emulator)
-        // Case 1: Use ROM assembly output
-        if self.is_asm_execution() {
-            let handle_rh = self.handle_rh.lock().unwrap().take().unwrap();
-            let result_rh = handle_rh.join().expect("Error during Rom Histogram thread execution");
-
-            *self.bios_inst_count.lock().unwrap() =
-                Arc::new(create_atomic_vec(result_rh.asm_rowh_output.bios_inst_count.len()));
-            *self.prog_inst_count.lock().unwrap() =
-                Arc::new(create_atomic_vec(result_rh.asm_rowh_output.prog_inst_count.len()));
-
-            return Some(RomSM::compute_witness_from_asm(
-                &self.zisk_rom,
-                &result_rh.asm_rowh_output,
-                trace_buffer,
-            ));
-        }
-
-=======
->>>>>>> dee8e3cd (replace the emulator)
-        // Case 2: Fallback to counter stats when not using assembly
         // Detach collectors and downcast to RomCollector
         if self.counter_stats.lock().unwrap().is_none() {
             let collectors: Vec<_> = collectors
@@ -219,7 +138,6 @@ impl<F: PrimeField64> Instance<F> for RomInstance {
 
     fn reset(&self) {
         *self.counter_stats.lock().unwrap() = None;
-        *self.asm_result.lock().unwrap() = None;
         self.calculated.store(false, std::sync::atomic::Ordering::Relaxed);
     }
 

@@ -243,40 +243,6 @@ impl ZiskStats {
 
         let mut witness_lib;
 
-<<<<<<< HEAD
-        let asm_services = AsmServices::new(world_rank, local_rank, self.port);
-        let asm_runner_options = AsmRunnerOptions::new()
-            .with_verbose(self.verbose > 0)
-            .with_base_port(self.port)
-            .with_world_rank(world_rank)
-            .with_local_rank(local_rank)
-            .with_unlock_mapped_memory(self.unlock_mapped_memory);
-
-        if self.asm.is_some() {
-            // Start ASM microservices
-            tracing::info!(">>> [{}] Starting ASM microservices.", mpi_ctx.rank,);
-
-            asm_services.start_asm_services(self.asm.as_ref().unwrap(), asm_runner_options)?;
-        }
-
-||||||| parent of dee8e3cd (replace the emulator)
-        let asm_services = AsmServices::new(world_rank, local_rank, self.port);
-        let asm_runner_options = AsmRunnerOptions::new()
-            .with_verbose(self.verbose > 0)
-            .with_base_port(self.port)
-            .with_world_rank(world_rank)
-            .with_local_rank(local_rank)
-            .with_unlock_mapped_memory(self.unlock_mapped_memory);
-
-        if self.asm.is_some() {
-            // Start ASM microservices
-            tracing::info!(">>> [{}] Starting ASM microservices.", mpi_context.world_rank,);
-
-            asm_services.start_asm_services(self.asm.as_ref().unwrap(), asm_runner_options)?;
-        }
-
-=======
->>>>>>> dee8e3cd (replace the emulator)
         match self.field {
             Field::Goldilocks => {
                 let library = unsafe {
@@ -287,16 +253,6 @@ impl ZiskStats {
                 witness_lib = witness_lib_constructor(
                     self.verbose.into(),
                     self.elf.clone(),
-<<<<<<< HEAD
-                    self.asm.clone(),
-                    asm_rom,
-||||||| parent of dee8e3cd (replace the emulator)
-                    self.asm.clone(),
-                    asm_rom,
-                    self.chunk_size_bits,
-=======
-                    self.chunk_size_bits,
->>>>>>> dee8e3cd (replace the emulator)
                     Some(world_rank),
                     Some(local_rank),
                     self.port,

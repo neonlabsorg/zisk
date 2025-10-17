@@ -21,30 +21,8 @@ use pil_std_lib::Std;
 use proofman_common::{AirInstance, FromTrace};
 use zisk_core::{RAM_ADDR, RAM_SIZE};
 
-<<<<<<< HEAD
 const DUAL_RANGE_MAX: usize = (1 << 24) - 1;
 const DUAL_PARTIAL_RANGE_MAX: usize = 1 << 20;
-||||||| parent of dee8e3cd (replace the emulator)
-pub const RAM_W_ADDR_INIT: u32 = RAM_ADDR as u32 >> MEM_BYTES_BITS;
-pub const RAM_W_ADDR_END: u32 = (RAM_ADDR + RAM_SIZE - 1) as u32 >> MEM_BYTES_BITS;
-
-const _: () = {
-    assert!(
-        (RAM_ADDR + RAM_SIZE - 1) <= 0xFFFF_FFFF,
-        "RAM memory exceeds the 32-bit addressable range"
-    );
-};
-=======
-pub const RAM_W_ADDR_INIT: u64 = RAM_ADDR >> MEM_BYTES_BITS;
-pub const RAM_W_ADDR_END: u64 = (RAM_ADDR + RAM_SIZE - 1) >> MEM_BYTES_BITS;
-
-const _: () = {
-    assert!(
-        (RAM_SIZE) <= 0xFFFF_FFFF,
-        "RAM memory exceeds the 32-bit addressable range"
-    );
-};
->>>>>>> dee8e3cd (replace the emulator)
 
 pub struct MemSM<F: PrimeField64> {
     /// PIL2 standard library
@@ -91,9 +69,11 @@ impl<F: PrimeField64> MemModule<F> for MemSM<F> {
     fn get_addr_range(&self) -> (u64, u64) {
         (RAM_W_ADDR_INIT, RAM_W_ADDR_END)
     }
+
     fn is_dual(&self) -> bool {
         true
     }
+
     /// Finalizes the witness accumulation process and triggers the proof generation.
     ///
     /// This method is invoked by the executor when no further witness data remains to be added.
@@ -196,15 +176,7 @@ impl<F: PrimeField64> MemModule<F> for MemSM<F> {
             dual_candidate = true;
 
             // set the common values of trace between internal reads and regular memory operation
-<<<<<<< HEAD
-            trace[i].addr = F::from_u32(mem_op.addr);
-||||||| parent of dee8e3cd (replace the emulator)
-            trace[i].addr = F::from_u32(mem_op.addr);
-            let addr_changes = last_addr != mem_op.addr;
-=======
             trace[i].addr = F::from_u64(mem_op.addr);
-            let addr_changes = last_addr != mem_op.addr;
->>>>>>> dee8e3cd (replace the emulator)
             trace[i].addr_changes = if addr_changes { F::ONE } else { F::ZERO };
 
             let mut increment = if addr_changes {

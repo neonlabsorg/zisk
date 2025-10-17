@@ -51,13 +51,7 @@
 //!
 //! The zisk_core crate contains basic structures and functionality used by several other modules:
 //! opcodes, instructions and transpilation
-<<<<<<< HEAD
-pub mod elf2rom;
 pub mod elf_extraction;
-||||||| parent of dee8e3cd (replace the emulator)
-pub mod elf2rom;
-=======
->>>>>>> dee8e3cd (replace the emulator)
 pub mod fcall;
 pub mod helpers;
 pub mod inst_context;

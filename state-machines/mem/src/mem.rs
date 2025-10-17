@@ -1,16 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-<<<<<<< HEAD
-    DummyMemPlanner, InputDataSM, MemAlignByteInstance, MemAlignByteSM, MemAlignInstance,
-    MemAlignReadByteInstance, MemAlignSM, MemAlignWriteByteInstance, MemModuleInstance, MemPlanner,
-    MemSM, RomDataSM,
-||||||| parent of dee8e3cd (replace the emulator)
-    InputDataSM, MemAlignInstance, MemAlignRomSM, MemAlignSM, MemCounters, MemModuleInstance,
-    MemPlanner, MemSM, RomDataSM,
-=======
-    accounts_data_sm::AccountDataMemSM, InputDataSM, MemAlignInstance, MemAlignRomSM, MemAlignSM, MemCounters, MemInitValuesSlot, MemModuleInstance, MemPlanner, MemSM, RomDataSM
->>>>>>> dee8e3cd (replace the emulator)
+    accounts_data_sm::AccountDataMemSM, DummyMemPlanner, InputDataSM, MemAlignByteInstance, MemAlignByteSM, MemAlignInstance, MemAlignReadByteInstance, MemAlignSM, MemAlignWriteByteInstance, MemInitValuesSlot, MemModuleInstance, MemPlanner, MemSM, RomDataSM
 };
 use fields::PrimeField64;
 use mem_common::MemCounters;
@@ -18,14 +9,8 @@ use pil_std_lib::Std;
 use proofman_common::ProofCtx;
 use zisk_common::{BusDeviceMetrics, ComponentBuilder, Instance, InstanceCtx, Plan, Planner};
 use zisk_pil::{
-<<<<<<< HEAD
     InputDataTrace, MemAlignByteTrace, MemAlignReadByteTrace, MemAlignTrace,
-    MemAlignWriteByteTrace, MemTrace, RomDataTrace, ZiskProofValues,
-||||||| parent of dee8e3cd (replace the emulator)
-    InputDataTrace, MemAlignRomTrace, MemAlignTrace, MemTrace, RomDataTrace, ZiskProofValues,
-=======
-    AccountDataTrace, InputDataTrace, MemAlignRomTrace, MemAlignTrace, MemTrace, RomDataTrace, ZiskProofValues
->>>>>>> dee8e3cd (replace the emulator)
+    MemAlignWriteByteTrace, MemTrace, RomDataTrace, ZiskProofValues, AccountDataTrace
 };
 
 pub struct Mem<F: PrimeField64> {
@@ -39,35 +24,15 @@ pub struct Mem<F: PrimeField64> {
 }
 
 impl<F: PrimeField64> Mem<F> {
-<<<<<<< HEAD
-    pub fn new(std: Arc<Std<F>>) -> Arc<Self> {
-        let mem_align_sm = MemAlignSM::new(std.clone());
-||||||| parent of dee8e3cd (replace the emulator)
-    pub fn new(std: Arc<Std<F>>) -> Arc<Self> {
-        let mem_align_rom_sm = MemAlignRomSM::new();
-        let mem_align_sm = MemAlignSM::new(std.clone(), mem_align_rom_sm.clone());
-=======
     pub fn new(std: Arc<Std<F>>, slot: MemInitValuesSlot) -> Arc<Self> {
-        let mem_align_rom_sm = MemAlignRomSM::new();
-        let mem_align_sm = MemAlignSM::new(std.clone(), mem_align_rom_sm.clone());
->>>>>>> dee8e3cd (replace the emulator)
+        let mem_align_sm = MemAlignSM::new(std.clone());
         let mem_sm = MemSM::new(std.clone());
         let input_data_sm = InputDataSM::new(std.clone());
         let rom_data_sm = RomDataSM::new(std.clone());
-<<<<<<< HEAD
         let mem_align_byte_sm = MemAlignByteSM::new(std.clone());
-||||||| parent of dee8e3cd (replace the emulator)
-=======
         let accounts_sm = AccountDataMemSM::new(std.clone(), slot);
->>>>>>> dee8e3cd (replace the emulator)
 
-<<<<<<< HEAD
-        Arc::new(Self { mem_align_sm, mem_sm, input_data_sm, rom_data_sm, mem_align_byte_sm })
-||||||| parent of dee8e3cd (replace the emulator)
-        Arc::new(Self { mem_align_sm, mem_align_rom_sm, mem_sm, input_data_sm, rom_data_sm })
-=======
-        Arc::new(Self { mem_align_sm, mem_align_rom_sm, mem_sm, input_data_sm, rom_data_sm, accounts_sm })
->>>>>>> dee8e3cd (replace the emulator)
+        Arc::new(Self { mem_align_sm, mem_sm, input_data_sm, rom_data_sm, accounts_sm, mem_align_byte_sm })
     }
 
     pub fn build_mem_counter(&self) -> MemCounters {

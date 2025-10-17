@@ -26,14 +26,8 @@ pub struct MemModulePlannerConfig {
     pub airgroup_id: usize,
     pub air_id: usize,
     pub addr_index: usize,
-<<<<<<< HEAD
-    pub from_addr: u32,
-    pub last_addr: u32,
-||||||| parent of dee8e3cd (replace the emulator)
-    pub from_addr: u32,
-=======
     pub from_addr: u64,
->>>>>>> dee8e3cd (replace the emulator)
+    pub last_addr: u64,
     pub rows: u32,
     pub consecutive_addr: bool,
 }

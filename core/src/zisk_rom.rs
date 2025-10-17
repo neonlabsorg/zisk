@@ -44,6 +44,8 @@
 //!     index `(pc-ROM_ENTRY)/4`
 use std::{collections::BTreeMap, path::PathBuf};
 
+use crate::mem::ROM_ADDR;
+
 use fields::PrimeField64;
 use serde::{Deserialize, Serialize};
 use solana_pubkey::Pubkey;
@@ -99,88 +101,10 @@ struct AccountInventory {
 /// Unlike the original is sbpf's instruction translating container 
 #[derive(Debug, Clone, Default)]
 pub struct ZiskRom {
-<<<<<<< HEAD
-    /// Address to be used to build the next instruction (and to be increased afterwards)
-    pub next_init_inst_addr: u64,
-
-    /// Map of instructions that are part of the ROM; the key is the ROM address (pc)
-    /// This map contains the instructions that are part of the program, i.e. address >= ROM_ADDR
-    pub insts: HashMap<u64, ZiskInstBuilder>,
-
-    /// List of RO sections as found in the ELF file
-    pub ro_data: Vec<RoData>,
-
-    // The following vectors are to store subsets of the ROM instructions in order to improve the
-    // program execution performance while fetching the instruction for the current step pc
-    // address
-    /// Vector of ROM instructions with address < ROM_ADDR
-    pub rom_entry_instructions: Vec<ZiskInst>,
-
-    /// ROM instructions with an address that is alligned to 4 bytes
-    pub rom_instructions: Vec<ZiskInst>,
-
-    /// Offset of the non-alligned instructions, to be subtracted to the address when accessing the
-    /// corresponding vector
-    pub offset_rom_na_unstructions: u64,
-
-    /// ROM instructions with an address that is not alligned to 4 bytes
-    pub rom_na_instructions: Vec<ZiskInst>,
-
-    /// Maximum rom entry PC
-    pub max_bios_pc: u64,
-
-    /// Maximum rom instruction PC
-    pub max_program_pc: u64,
-
-    /// List of instruction program counter (address) in incremental order:
-    /// 0x1000, 0x1004, ..., 0x80000000, 0x80000004, ...
-    pub sorted_pc_list: Vec<u64>,
-
-    /// Minimum rom instruction PC (first program instruction address)
-    /// This is typically 0x80000000 but can be different (e.g., 0x80001000 with Go's internal linker)
-    pub min_program_pc: u64,
-||||||| parent of dee8e3cd (replace the emulator)
-    /// Address to be used to build the next instruction (and to be increased afterwards)
-    pub next_init_inst_addr: u64,
-
-    /// Map of instructions that are part of the ROM; the key is the ROM address (pc)
-    /// This map contains the instructions that are part of the program, i.e. address >= ROM_ADDR
-    pub insts: HashMap<u64, ZiskInstBuilder>,
-
-    /// List of RO sections as found in the ELF file
-    pub ro_data: Vec<RoData>,
-
-    // The following vectors are to store subsets of the ROM instructions in order to improve the
-    // program execution performance while fetching the instruction for the current step pc
-    // address
-    /// Vector of ROM instructions with address < ROM_ADDR
-    pub rom_entry_instructions: Vec<ZiskInst>,
-
-    /// ROM instructions with an address that is alligned to 4 bytes
-    pub rom_instructions: Vec<ZiskInst>,
-
-    /// Offset of the non-alligned instructions, to be subtracted to the address when accessing the
-    /// corresponding vector
-    pub offset_rom_na_unstructions: u64,
-
-    /// ROM instructions with an address that is not alligned to 4 bytes
-    pub rom_na_instructions: Vec<ZiskInst>,
-
-    /// Maximum rom entry PC
-    pub max_bios_pc: u64,
-
-    /// Maximum rom instruction PC
-    pub max_program_pc: u64,
-
-    /// List of instruction program counter (address) in incremental order:
-    /// 0x1000, 0x1004, ..., 0x80000000, 0x80000004, ...
-    pub sorted_pc_list: Vec<u64>,
-=======
     pub key: Pubkey,
     pub transpiled_instructions: Vec<Vec<ZiskInst>>,
     pub system_instructions: Vec<Vec<ZiskInst>>,
     program: ProcessedElf
->>>>>>> dee8e3cd (replace the emulator)
 }
 
 pub fn reg_for_bpf_reg(reg: u8) -> u64 {
@@ -1382,77 +1306,12 @@ impl ZiskRom {
     //#[inline(always)]
     pub fn get_instruction(&self, pc: u64) -> &ZiskInst {
         // If the address is a program address...
-<<<<<<< HEAD
-        if pc >= self.min_program_pc {
-            // If the address is alligned, take it from the proper vector
-            if pc & 0b11 == 0 {
-                // pc is aligned to a 4-byte boundary
-                let rom_index = ((pc - self.min_program_pc) >> 2) as usize;
-                if rom_index >= self.rom_instructions.len() {
-                    panic!(
-                        "ZiskRom::get_instruction() pc=0x{0:X} ({0}) is out of range rom_instructions (rom_index:{1:} >= {2:})",
-                        pc,
-                        rom_index,
-                        self.rom_instructions.len()
-                    );
-                }
-                &self.rom_instructions[rom_index]
-                // Otherwise, take it from the non alligned vector, using the the difference of the pc
-                // vs. the offset as the index
-            } else {
-                // pc is not aligned to a 4-byte boundary
-                if self.offset_rom_na_unstructions > pc {
-                    panic!("ZiskRom::get_instruction() pc=0x{:x} is out of range vs. offset_rom_na_instructions=0x{:x}", pc, self.offset_rom_na_unstructions);
-                }
-                let rom_index = (pc - self.offset_rom_na_unstructions) as usize;
-                if rom_index >= self.rom_na_instructions.len() {
-                    panic!(
-                        "ZiskRom::get_instruction() pc={} is out of range rom_na_instructions (rom_index:{} >= {})",
-                        pc,
-                        rom_index,
-                        self.rom_na_instructions.len()
-                    );
-                }
-                &self.rom_na_instructions[rom_index]
-            }
-||||||| parent of dee8e3cd (replace the emulator)
-        if pc >= ROM_ADDR {
-            // If the address is alligned, take it from the proper vector
-            if pc & 0b11 == 0 {
-                // pc is aligned to a 4-byte boundary
-                let rom_index = ((pc - ROM_ADDR) >> 2) as usize;
-                if rom_index >= self.rom_instructions.len() {
-                    panic!(
-                        "ZiskRom::get_instruction() pc=0x{0:X} ({0}) is out of range rom_instructions (rom_index:{1:} >= {2:})",
-                        pc,
-                        rom_index,
-                        self.rom_instructions.len()
-                    );
-                }
-                &self.rom_instructions[rom_index]
-                // Otherwise, take it from the non alligned vector, using the the difference of the pc
-                // vs. the offset as the index
-            } else {
-                // pc is not aligned to a 4-byte boundary
-                let rom_index = (pc - self.offset_rom_na_unstructions) as usize;
-                if rom_index >= self.rom_na_instructions.len() {
-                    panic!(
-                        "ZiskRom::get_instruction() pc={} is out of range rom_na_instructions (rom_index:{} >= {})",
-                        pc,
-                        rom_index,
-                        self.rom_na_instructions.len()
-                    );
-                }
-                &self.rom_na_instructions[rom_index]
-            }
-=======
         if pc >= ROM_ADDR {
             let align = TRANSPILE_ALIGN as u64;
             let line = (pc - ROM_ADDR) / align;
             let index = (pc - ROM_ADDR) % align;
 
             &self.transpiled_instructions[line as usize][index as usize]
->>>>>>> dee8e3cd (replace the emulator)
         } else if pc >= ROM_ENTRY {
             let align = TRANSPILE_ALIGN as u64;
             let line = (pc - ROM_ADDR) / align;
@@ -1464,96 +1323,10 @@ impl ZiskRom {
         }
     }
 
-<<<<<<< HEAD
-    /// Gets the ROM instruction corresponding to the provided pc address, as a mutable reference.
-    /// Depending on the range and allignment of the address, the function searches for it in the
-    /// corresponding vector.
-    #[inline(always)]
-    pub fn get_mut_instruction(&mut self, pc: u64) -> &mut ZiskInst {
-        // If the address is a program address...
-        if pc >= self.min_program_pc {
-            // If the address is alligned, take it from the proper vector
-            if pc & 0b11 == 0 {
-                // pc is aligned to a 4-byte boundary
-                let rom_index = ((pc - self.min_program_pc) >> 2) as usize;
-                if rom_index >= self.rom_instructions.len() {
-                    panic!(
-                        "ZiskRom::get_mut_instruction() pc=0x{0:X} ({0}) is out of range rom_instructions (rom_index:{1:} >= {2:})",
-                        pc,
-                        rom_index,
-                        self.rom_instructions.len()
-                    );
-                }
-                &mut self.rom_instructions[rom_index]
-                // Otherwise, take it from the non alligned vector, using the the difference of the pc
-                // vs. the offset as the index
-            } else {
-                // pc is not aligned to a 4-byte boundary
-                let rom_index = (pc - self.offset_rom_na_unstructions) as usize;
-                if rom_index >= self.rom_na_instructions.len() {
-                    panic!(
-                        "ZiskRom::get_mut_instruction() pc={} is out of range rom_na_instructions (rom_index:{} >= {})",
-                        pc,
-                        rom_index,
-                        self.rom_na_instructions.len()
-                    );
-                }
-                &mut self.rom_na_instructions[rom_index]
-            }
-        } else if pc >= ROM_ENTRY {
-            // pc is in the ROM_ENTRY range (always alligned)
-            &mut self.rom_entry_instructions[((pc - ROM_ENTRY) >> 2) as usize]
-        } else {
-            panic!("ZiskRom::get_mut_instruction() pc={pc} is out of range");
-        }
-||||||| parent of dee8e3cd (replace the emulator)
-    /// Gets the ROM instruction corresponding to the provided pc address, as a mutable reference.
-    /// Depending on the range and allignment of the address, the function searches for it in the
-    /// corresponding vector.
-    #[inline(always)]
-    pub fn get_mut_instruction(&mut self, pc: u64) -> &mut ZiskInst {
-        // If the address is a program address...
-        if pc >= ROM_ADDR {
-            // If the address is alligned, take it from the proper vector
-            if pc & 0b11 == 0 {
-                // pc is aligned to a 4-byte boundary
-                let rom_index = ((pc - ROM_ADDR) >> 2) as usize;
-                if rom_index >= self.rom_instructions.len() {
-                    panic!(
-                        "ZiskRom::get_mut_instruction() pc=0x{0:X} ({0}) is out of range rom_instructions (rom_index:{1:} >= {2:})",
-                        pc,
-                        rom_index,
-                        self.rom_instructions.len()
-                    );
-                }
-                &mut self.rom_instructions[rom_index]
-                // Otherwise, take it from the non alligned vector, using the the difference of the pc
-                // vs. the offset as the index
-            } else {
-                // pc is not aligned to a 4-byte boundary
-                let rom_index = (pc - self.offset_rom_na_unstructions) as usize;
-                if rom_index >= self.rom_na_instructions.len() {
-                    panic!(
-                        "ZiskRom::get_mut_instruction() pc={} is out of range rom_na_instructions (rom_index:{} >= {})",
-                        pc,
-                        rom_index,
-                        self.rom_na_instructions.len()
-                    );
-                }
-                &mut self.rom_na_instructions[rom_index]
-            }
-        } else if pc >= ROM_ENTRY {
-            // pc is in the ROM_ENTRY range (always alligned)
-            &mut self.rom_entry_instructions[((pc - ROM_ENTRY) >> 2) as usize]
-        } else {
-            panic!("ZiskRom::get_mut_instruction() pc={pc} is out of range");
-        }
-=======
     pub fn pc_iter<'a>(&'a self) -> impl 'a + Iterator<Item = u64> {
         self.system_instructions.as_slice().iter()
             .chain(self.transpiled_instructions.as_slice().iter())
             .flat_map(|items| items.as_slice().iter().map(|inst| inst.paddr))
->>>>>>> dee8e3cd (replace the emulator)
     }
 
     pub fn build_constant_trace<F: PrimeField64>(&self) -> Vec<MainTraceRow<F>> {
