@@ -51,14 +51,17 @@
 //!
 //! The zisk_core crate contains basic structures and functionality used by several other modules:
 //! opcodes, instructions and transpilation
+<<<<<<< HEAD
 pub mod elf2rom;
 pub mod elf_extraction;
+||||||| parent of dee8e3cd (replace the emulator)
+pub mod elf2rom;
+=======
+>>>>>>> dee8e3cd (replace the emulator)
 pub mod fcall;
 pub mod helpers;
 pub mod inst_context;
 pub mod mem;
-pub mod riscv2zisk;
-pub mod riscv2zisk_context;
 mod utils;
 pub mod zisk_definitions;
 pub mod zisk_inst;
@@ -67,15 +70,11 @@ pub mod zisk_ops;
 pub mod zisk_registers;
 pub mod zisk_required_operation;
 pub mod zisk_rom;
-pub mod zisk_rom_2_asm;
 
-pub use elf2rom::*;
 pub use fcall::*;
 pub use helpers::*;
 pub use inst_context::*;
 pub use mem::*;
-pub use riscv2zisk::*;
-pub use riscv2zisk_context::*;
 pub use utils::*;
 pub use zisk_definitions::*;
 pub use zisk_inst::*;
@@ -83,4 +82,3 @@ pub use zisk_inst_builder::*;
 pub use zisk_registers::*;
 pub use zisk_required_operation::*;
 pub use zisk_rom::*;
-pub use zisk_rom_2_asm::*;

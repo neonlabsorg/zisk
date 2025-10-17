@@ -47,10 +47,10 @@ impl MemCountersCursor {
     pub fn is_empty(&self) -> bool {
         self.counters_count == 0
     }
-    pub fn get_next(&mut self) -> (ChunkId, u32, u32) {
+    pub fn get_next(&mut self) -> (ChunkId, u64, u32) {
         let cursor = &self.sorted_boxes[self.cursor_index];
         self.cursor_index += 1;
-        (cursor.chunk, cursor.addr as u32, cursor.count)
+        (cursor.chunk, cursor.addr, cursor.count)
     }
 
     fn prepare(

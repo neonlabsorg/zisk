@@ -11,10 +11,6 @@ categories = { workspace = true }
 name = "zisk_core"
 path = "src/lib.rs"
 
-[[bin]]
-name = "riscv2zisk"
-path = "src/bin/riscv2zisk.rs"
-
 [dependencies]
 precompiles-helpers = { workspace = true }
 lib-c = { workspace = true }
@@ -33,6 +29,16 @@ elf = "0.7.4"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 sha2 = { version = "0.10.9", features = ["compress"] }
 generic-array = "0.14"
+
+solana-sdk.workspace = true
+sbpf-parser.workspace=true
+svm-tracer.workspace=true
+mollusk-svm.workspace=true
+solana-program-runtime.workspace=true
+solana-sbpf.workspace=true
+solana-pubkey.workspace=true
+blake3 = "1.8.2"
+serde_with = "3.15.0"
 
 [features]
 default = []

@@ -4,7 +4,6 @@ use crate::{
     ZISK_VERSION_MESSAGE,
 };
 use anyhow::Result;
-use asm_runner::{AsmRunnerOptions, AsmServices};
 use clap::Parser;
 use colored::Colorize;
 use executor::{Stats, ZiskExecutionResult};
@@ -177,6 +176,7 @@ impl ZiskVerifyConstraints {
         .expect("Failed to initialize proofman");
         let mut witness_lib;
 
+<<<<<<< HEAD
         let mpi_ctx = proofman.get_mpi_ctx();
 
         initialize_logger(self.verbose.into(), Some(mpi_ctx.rank));
@@ -189,8 +189,21 @@ impl ZiskVerifyConstraints {
             .with_local_rank(mpi_ctx.node_rank)
             .with_unlock_mapped_memory(self.unlock_mapped_memory);
 
+||||||| parent of dee8e3cd (replace the emulator)
+        let asm_services =
+            AsmServices::new(mpi_context.world_rank, mpi_context.local_rank, self.port);
+        let asm_runner_options = AsmRunnerOptions::new()
+            .with_verbose(self.verbose > 0)
+            .with_base_port(self.port)
+            .with_world_rank(mpi_context.world_rank)
+            .with_local_rank(mpi_context.local_rank)
+            .with_unlock_mapped_memory(self.unlock_mapped_memory);
+
+=======
+>>>>>>> dee8e3cd (replace the emulator)
         let start = std::time::Instant::now();
 
+<<<<<<< HEAD
         if self.asm.is_some() {
             // Start ASM microservices
             tracing::info!(">>> [{}] Starting ASM microservices.", mpi_ctx.rank);
@@ -198,6 +211,16 @@ impl ZiskVerifyConstraints {
             asm_services.start_asm_services(self.asm.as_ref().unwrap(), asm_runner_options)?;
         }
 
+||||||| parent of dee8e3cd (replace the emulator)
+        if self.asm.is_some() {
+            // Start ASM microservices
+            tracing::info!(">>> [{}] Starting ASM microservices.", mpi_context.world_rank,);
+
+            asm_services.start_asm_services(self.asm.as_ref().unwrap(), asm_runner_options)?;
+        }
+
+=======
+>>>>>>> dee8e3cd (replace the emulator)
         match self.field {
             Field::Goldilocks => {
                 let library = unsafe {
@@ -208,10 +231,22 @@ impl ZiskVerifyConstraints {
                 witness_lib = witness_lib_constructor(
                     self.verbose.into(),
                     self.elf.clone(),
+<<<<<<< HEAD
                     self.asm.clone(),
                     asm_rom,
                     Some(mpi_ctx.rank),
                     Some(mpi_ctx.node_rank),
+||||||| parent of dee8e3cd (replace the emulator)
+                    self.asm.clone(),
+                    asm_rom,
+                    None,
+                    Some(mpi_context.world_rank),
+                    Some(mpi_context.local_rank),
+=======
+                    None,
+                    Some(mpi_context.world_rank),
+                    Some(mpi_context.local_rank),
+>>>>>>> dee8e3cd (replace the emulator)
                     self.port,
                     self.unlock_mapped_memory,
                     self.shared_tables,
@@ -247,12 +282,22 @@ impl ZiskVerifyConstraints {
             result.executed_steps
         );
 
+<<<<<<< HEAD
         if self.asm.is_some() {
             // Shut down ASM microservices
             tracing::info!("<<< [{}] Shutting down ASM microservices.", mpi_ctx.rank);
             asm_services.stop_asm_services()?;
         }
 
+||||||| parent of dee8e3cd (replace the emulator)
+        if self.asm.is_some() {
+            // Shut down ASM microservices
+            tracing::info!("<<< [{}] Shutting down ASM microservices.", mpi_context.world_rank);
+            asm_services.stop_asm_services()?;
+        }
+
+=======
+>>>>>>> dee8e3cd (replace the emulator)
         // Store the stats in stats.json
         #[cfg(feature = "stats")]
         {

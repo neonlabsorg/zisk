@@ -23,9 +23,8 @@ pub struct EmuContext {
 
 /// RisK emulator context implementation
 impl EmuContext {
-    /// RisK emulator context constructor
-    pub fn new(input: Vec<u8>) -> EmuContext {
-        let mut ctx = EmuContext {
+    pub fn new_empty() -> EmuContext {
+        EmuContext {
             inst_ctx: InstContext {
                 mem: Mem::default(),
                 a: 0,
@@ -52,7 +51,12 @@ impl EmuContext {
             last_callback_step: 0,
             do_stats: false,
             stats: Stats::default(),
-        };
+        }
+    }
+
+    /// RisK emulator context constructor
+    pub fn new(input: Vec<u8>) -> EmuContext {
+        let mut ctx = Self::new_empty();
 
         // Check the input data size is inside the proper range
         if input.len() > (MAX_INPUT_SIZE - 16) as usize {

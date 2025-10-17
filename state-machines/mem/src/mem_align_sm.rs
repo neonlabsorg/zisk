@@ -17,8 +17,8 @@ const CHUNKS_BY_RC: usize = CHUNK_NUM / RC;
 const CHUNK_BITS: usize = 8;
 const RC_BITS: u64 = (CHUNKS_BY_RC * CHUNK_BITS) as u64;
 const RC_MASK: u64 = (1 << RC_BITS) - 1;
-const OFFSET_MASK: u32 = 0x07;
-const OFFSET_BITS: u32 = 3;
+const OFFSET_MASK: u64 = 0x07;
+const OFFSET_BITS: u64 = 3;
 const CHUNK_BITS_MASK: u64 = (1 << CHUNK_BITS) - 1;
 
 const fn generate_allowed_offsets() -> [u8; CHUNK_NUM] {
@@ -125,7 +125,7 @@ impl<F: PrimeField64> MemAlignSM<F> {
 
                 let mut read_row = MemAlignTraceRow::<F> {
                     step: F::from_u64(step),
-                    addr: F::from_u32(addr_read),
+                    addr: F::from_u64(addr_read),
                     // delta_addr: F::ZERO,
                     offset: F::from_u64(DEFAULT_OFFSET),
                     width: F::from_u64(DEFAULT_WIDTH),
@@ -138,7 +138,7 @@ impl<F: PrimeField64> MemAlignSM<F> {
 
                 let mut value_row = MemAlignTraceRow::<F> {
                     step: F::from_u64(step),
-                    addr: F::from_u32(addr_read),
+                    addr: F::from_u64(addr_read),
                     // delta_addr: F::ZERO,
                     offset: F::from_usize(offset),
                     width: F::from_usize(width),
@@ -252,7 +252,7 @@ impl<F: PrimeField64> MemAlignSM<F> {
 
                 let mut read_row = MemAlignTraceRow::<F> {
                     step: F::from_u64(step),
-                    addr: F::from_u32(addr_read),
+                    addr: F::from_u64(addr_read),
                     // delta_addr: F::ZERO,
                     offset: F::from_u64(DEFAULT_OFFSET),
                     width: F::from_u64(DEFAULT_WIDTH),
@@ -265,7 +265,7 @@ impl<F: PrimeField64> MemAlignSM<F> {
 
                 let mut write_row = MemAlignTraceRow::<F> {
                     step: F::from_u64(step + 1),
-                    addr: F::from_u32(addr_read),
+                    addr: F::from_u64(addr_read),
                     // delta_addr: F::ZERO,
                     offset: F::from_u64(DEFAULT_OFFSET),
                     width: F::from_u64(DEFAULT_WIDTH),
@@ -278,7 +278,7 @@ impl<F: PrimeField64> MemAlignSM<F> {
 
                 let mut value_row = MemAlignTraceRow::<F> {
                     step: F::from_u64(step),
-                    addr: F::from_u32(addr_read),
+                    addr: F::from_u64(addr_read),
                     // delta_addr: F::ZERO,
                     offset: F::from_usize(offset),
                     width: F::from_usize(width),
@@ -405,7 +405,7 @@ impl<F: PrimeField64> MemAlignSM<F> {
 
                 let mut first_read_row = MemAlignTraceRow::<F> {
                     step: F::from_u64(step),
-                    addr: F::from_u32(addr_first_read),
+                    addr: F::from_u64(addr_first_read),
                     // delta_addr: F::ZERO,
                     offset: F::from_u64(DEFAULT_OFFSET),
                     width: F::from_u64(DEFAULT_WIDTH),
@@ -418,7 +418,7 @@ impl<F: PrimeField64> MemAlignSM<F> {
 
                 let mut value_row = MemAlignTraceRow::<F> {
                     step: F::from_u64(step),
-                    addr: F::from_u32(addr_first_read),
+                    addr: F::from_u64(addr_first_read),
                     // delta_addr: F::ZERO,
                     offset: F::from_usize(offset),
                     width: F::from_usize(width),
@@ -431,7 +431,7 @@ impl<F: PrimeField64> MemAlignSM<F> {
 
                 let mut second_read_row = MemAlignTraceRow::<F> {
                     step: F::from_u64(step),
-                    addr: F::from_u32(addr_second_read),
+                    addr: F::from_u64(addr_second_read),
                     delta_addr: F::ONE,
                     offset: F::from_u64(DEFAULT_OFFSET),
                     width: F::from_u64(DEFAULT_WIDTH),
@@ -595,7 +595,7 @@ impl<F: PrimeField64> MemAlignSM<F> {
                 // RWVWR
                 let mut first_read_row = MemAlignTraceRow::<F> {
                     step: F::from_u64(step),
-                    addr: F::from_u32(addr_first_read_write),
+                    addr: F::from_u64(addr_first_read_write),
                     // delta_addr: F::ZERO,
                     offset: F::from_u64(DEFAULT_OFFSET),
                     width: F::from_u64(DEFAULT_WIDTH),
@@ -608,7 +608,7 @@ impl<F: PrimeField64> MemAlignSM<F> {
 
                 let mut first_write_row = MemAlignTraceRow::<F> {
                     step: F::from_u64(step + 1),
-                    addr: F::from_u32(addr_first_read_write),
+                    addr: F::from_u64(addr_first_read_write),
                     // delta_addr: F::ZERO,
                     offset: F::from_u64(DEFAULT_OFFSET),
                     width: F::from_u64(DEFAULT_WIDTH),
@@ -621,7 +621,7 @@ impl<F: PrimeField64> MemAlignSM<F> {
 
                 let mut value_row = MemAlignTraceRow::<F> {
                     step: F::from_u64(step),
-                    addr: F::from_u32(addr_first_read_write),
+                    addr: F::from_u64(addr_first_read_write),
                     // delta_addr: F::ZERO,
                     offset: F::from_usize(offset),
                     width: F::from_usize(width),
@@ -634,7 +634,7 @@ impl<F: PrimeField64> MemAlignSM<F> {
 
                 let mut second_write_row = MemAlignTraceRow::<F> {
                     step: F::from_u64(step + 1),
-                    addr: F::from_u32(addr_second_read_write),
+                    addr: F::from_u64(addr_second_read_write),
                     delta_addr: F::ONE,
                     offset: F::from_u64(DEFAULT_OFFSET),
                     width: F::from_u64(DEFAULT_WIDTH),
@@ -647,7 +647,7 @@ impl<F: PrimeField64> MemAlignSM<F> {
 
                 let mut second_read_row = MemAlignTraceRow::<F> {
                     step: F::from_u64(step),
-                    addr: F::from_u32(addr_second_read_write),
+                    addr: F::from_u64(addr_second_read_write),
                     // delta_addr: F::ZERO,
                     offset: F::from_u64(DEFAULT_OFFSET),
                     width: F::from_u64(DEFAULT_WIDTH),

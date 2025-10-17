@@ -4,7 +4,6 @@ use crate::{
     ZISK_VERSION_MESSAGE,
 };
 use anyhow::Result;
-use asm_runner::{AsmRunnerOptions, AsmServices};
 use bytemuck::cast_slice;
 use colored::Colorize;
 use executor::{Stats, ZiskExecutionResult};
@@ -234,6 +233,7 @@ impl ZiskProve {
             gpu_params.with_max_witness_stored(self.max_witness_stored.unwrap());
         }
 
+<<<<<<< HEAD
         let proofman = ProofMan::<Goldilocks>::new(
             proving_key,
             custom_commits_map,
@@ -262,6 +262,80 @@ impl ZiskProve {
 
             asm_services.start_asm_services(self.asm.as_ref().unwrap(), asm_runner_options)?;
         }
+||||||| parent of dee8e3cd (replace the emulator)
+        let proofman;
+        #[cfg(distributed)]
+        {
+            proofman = ProofMan::<Goldilocks>::new(
+                proving_key,
+                custom_commits_map,
+                verify_constraints,
+                self.aggregation,
+                self.final_snark,
+                gpu_params,
+                self.verbose.into(),
+                Some(mpi_context.universe),
+            )
+            .expect("Failed to initialize proofman");
+        }
+        #[cfg(not(distributed))]
+        {
+            proofman = ProofMan::<Goldilocks>::new(
+                proving_key,
+                custom_commits_map,
+                verify_constraints,
+                self.aggregation,
+                self.final_snark,
+                gpu_params,
+                self.verbose.into(),
+            )
+            .expect("Failed to initialize proofman");
+        }
+        let asm_services =
+            AsmServices::new(mpi_context.world_rank, mpi_context.local_rank, self.port);
+        let asm_runner_options = AsmRunnerOptions::new()
+            .with_verbose(self.verbose > 0)
+            .with_base_port(self.port)
+            .with_world_rank(mpi_context.world_rank)
+            .with_local_rank(mpi_context.local_rank)
+            .with_unlock_mapped_memory(self.unlock_mapped_memory);
+
+        if self.asm.is_some() {
+            // Start ASM microservices
+            tracing::info!(">>> [{}] Starting ASM microservices.", mpi_context.world_rank,);
+
+            asm_services.start_asm_services(self.asm.as_ref().unwrap(), asm_runner_options)?;
+        }
+=======
+        let proofman;
+        #[cfg(distributed)]
+        {
+            proofman = ProofMan::<Goldilocks>::new(
+                proving_key,
+                custom_commits_map,
+                verify_constraints,
+                self.aggregation,
+                self.final_snark,
+                gpu_params,
+                self.verbose.into(),
+                Some(mpi_context.universe),
+            )
+            .expect("Failed to initialize proofman");
+        }
+        #[cfg(not(distributed))]
+        {
+            proofman = ProofMan::<Goldilocks>::new(
+                proving_key,
+                custom_commits_map,
+                verify_constraints,
+                self.aggregation,
+                self.final_snark,
+                gpu_params,
+                self.verbose.into(),
+            )
+            .expect("Failed to initialize proofman");
+        }
+>>>>>>> dee8e3cd (replace the emulator)
 
         let library =
             unsafe { Library::new(get_witness_computation_lib(self.witness_lib.as_ref()))? };
@@ -270,10 +344,22 @@ impl ZiskProve {
         let mut witness_lib = witness_lib_constructor(
             self.verbose.into(),
             self.elf.clone(),
+<<<<<<< HEAD
             self.asm.clone(),
             asm_rom,
             Some(mpi_ctx.rank),
             Some(mpi_ctx.node_rank),
+||||||| parent of dee8e3cd (replace the emulator)
+            self.asm.clone(),
+            asm_rom,
+            self.chunk_size_bits,
+            Some(mpi_context.world_rank),
+            Some(mpi_context.local_rank),
+=======
+            self.chunk_size_bits,
+            Some(mpi_context.world_rank),
+            Some(mpi_context.local_rank),
+>>>>>>> dee8e3cd (replace the emulator)
             self.port,
             self.unlock_mapped_memory,
             self.shared_tables,
@@ -393,15 +479,28 @@ impl ZiskProve {
             }
 
             // Store the stats in stats.json
+<<<<<<< HEAD
             #[cfg(feature = "stats")]
             {
                 let stats_id = _stats.lock().unwrap().get_id();
                 _stats.lock().unwrap().add_stat(0, stats_id, "END", 0, ExecutorStatsEvent::Mark);
                 _stats.lock().unwrap().store_stats();
             }
+||||||| parent of dee8e3cd (replace the emulator)
+            #[cfg(feature = "stats")]
+            {
+                _stats.lock().unwrap().add_stat(ExecutorStatsEnum::End(ExecutorStatsDuration {
+                    start_time: Instant::now(),
+                    duration: Duration::new(0, 1),
+                }));
+                _stats.lock().unwrap().store_stats();
+            }
+=======
+>>>>>>> dee8e3cd (replace the emulator)
         }
 
         proofman.set_barrier();
+<<<<<<< HEAD
 
         if self.asm.is_some() {
             // Shut down ASM microservices
@@ -409,6 +508,16 @@ impl ZiskProve {
             asm_services.stop_asm_services()?;
         }
 
+||||||| parent of dee8e3cd (replace the emulator)
+
+        if self.asm.is_some() {
+            // Shut down ASM microservices
+            tracing::info!("<<< [{}] Shutting down ASM microservices.", mpi_context.world_rank);
+            asm_services.stop_asm_services()?;
+        }
+
+=======
+>>>>>>> dee8e3cd (replace the emulator)
         Ok(())
     }
 

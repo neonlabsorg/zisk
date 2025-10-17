@@ -21,8 +21,8 @@ pub struct MemBusData;
 
 impl MemBusData {
     #[inline(always)]
-    pub fn get_addr(data: &[u64]) -> u32 {
-        data[ADDR] as u32
+    pub fn get_addr(data: &[u64]) -> u64 {
+        data[ADDR]
     }
 
     #[inline(always)]

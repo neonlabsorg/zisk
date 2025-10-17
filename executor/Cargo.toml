@@ -16,9 +16,8 @@ ziskemu = { workspace = true }
 zisk-core = { workspace = true }
 zisk-common = { workspace = true }
 data-bus = { workspace = true }
-asm-runner = { workspace = true }
-mem-planner-cpp = { workspace = true }
 mem-common = { workspace = true }
+sm-accounts = { path = "../state-machines/accounts" }
 
 proofman = { workspace = true }
 proofman-common = { workspace = true }
@@ -40,6 +39,12 @@ sm-arith = { workspace = true }
 sm-binary = { workspace = true }
 sm-mem = { workspace = true }
 sm-frequent-ops = { workspace = true }
+
+sbpf-parser.workspace = true
+svm-tracer.workspace = true
+mollusk-svm.workspace = true
+solana-account.workspace = true
+solana-pubkey.workspace = true
 
 [features]
 default = []

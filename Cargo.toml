@@ -24,7 +24,6 @@ members = [
     "state-machines/binary",
     "state-machines/main",
     "state-machines/mem",
-    "state-machines/mem-cpp",
     "state-machines/rom",
     "witness-computation",
     "ziskos/entrypoint",
@@ -34,15 +33,14 @@ members = [
     "precompiles/keccakf",
     "precompiles/sha256f",
     "lib-c",
-    "emulator-asm/asm-runner",
     "ziskclib",
     "common",
     "tools/circuit",
-    "server",
     "distributed/crates/coordinator",
     "distributed/crates/grpc-api",
     "distributed/crates/common",
     "distributed/crates/worker",
+    "server", "state-machines/accounts",
 ]
 
 resolver = "2"
@@ -63,7 +61,6 @@ zisk-common = { path = "common" }
 zisk-core = { path = "core" }
 data-bus = { path = "data-bus" }
 ziskemu = { path = "emulator" }
-asm-runner = { path = "emulator-asm/asm-runner" }
 executor = { path = "executor" }
 lib-c = { path = "lib-c" }
 zisk-pil = { path = "pil" }
@@ -82,7 +79,6 @@ sm-main = { path = "state-machines/main" }
 sm-mem = { path = "state-machines/mem" }
 sm-frequent-ops = { path = "state-machines/frequent-ops" }
 mem-common = { path = "state-machines/mem-common" }
-mem-planner-cpp = { path = "state-machines/mem-cpp" }
 sm-rom = { path = "state-machines/rom" }
 zisk-witness = { path = "witness-computation" }
 ziskclib = { path = "ziskclib" }
@@ -96,23 +92,23 @@ zisk-distributed-grpc-api = { path = "distributed/crates/grpc-api" }
 zisk-distributed-prover = { path = "distributed/crates/worker" }
 
 # Proofman
-proofman = { git = "https://github.com/0xPolygonHermez/pil2-proofman.git", tag = "v0.12.0" }
-proofman-common = { git = "https://github.com/0xPolygonHermez/pil2-proofman.git", tag = "v0.12.0" }
-proofman-macros = { git = "https://github.com/0xPolygonHermez/pil2-proofman.git", tag = "v0.12.0" }
-proofman-verifier = { git = "https://github.com/0xPolygonHermez/pil2-proofman.git", tag = "v0.12.0" }
-proofman-util = { git = "https://github.com/0xPolygonHermez/pil2-proofman.git", tag = "v0.12.0" }
-pil-std-lib = { git = "https://github.com/0xPolygonHermez/pil2-proofman.git", tag = "v0.12.0" }
-witness = { git = "https://github.com/0xPolygonHermez/pil2-proofman.git", tag = "v0.12.0" }
-fields = { git = "https://github.com/0xPolygonHermez/pil2-proofman.git", tag = "v0.12.0" }
-# Proofman Local development
-# proofman = { path = "../pil2-proofman/proofman" }
-# proofman-common = { path = "../pil2-proofman/common" }
-# proofman-macros = { path = "../pil2-proofman/macros" }
-# proofman-verifier = { path = "../pil2-proofman/verifier" }
-# proofman-util = { path = "../pil2-proofman/util" }
-# pil-std-lib = { path = "../pil2-proofman/pil2-components/lib/std/rs" }
-# witness = { path = "../pil2-proofman/witness" }
-# fields = { path = "../pil2-proofman/fields" }
+#proofman = { git = "https://github.com/0xPolygonHermez/pil2-proofman.git", branch = "pre-develop-0.11.0" }
+#proofman-common = { git = "https://github.com/0xPolygonHermez/pil2-proofman.git", branch = "pre-develop-0.11.0" }
+#proofman-macros = { git = "https://github.com/0xPolygonHermez/pil2-proofman.git", branch = "pre-develop-0.11.0" }
+#proofman-util = { git = "https://github.com/0xPolygonHermez/pil2-proofman.git", branch = "pre-develop-0.11.0" }
+#pil-std-lib = { git = "https://github.com/0xPolygonHermez/pil2-proofman.git", branch = "pre-develop-0.11.0" }
+#witness = { git = "https://github.com/0xPolygonHermez/pil2-proofman.git", branch = "pre-develop-0.11.0" }
+#fields = { git = "https://github.com/0xPolygonHermez/pil2-proofman.git", branch = "pre-develop-0.11.0" }
+
+# Local development
+proofman = { path = "../pil2-proofman/proofman" }
+proofman-common = { path = "../pil2-proofman/common" }
+proofman-macros = { path = "../pil2-proofman/macros" }
+proofman-util = { path = "../pil2-proofman/util" }
+pil-std-lib = { path = "../pil2-proofman/pil2-components/lib/std/rs" }
+witness = { path = "../pil2-proofman/witness" }
+fields = { path = "../pil2-proofman/fields" }
+proofman-verifier = { path = "../pil2-proofman/verifier" }
 
 # External dependencies
 rayon = "1.10"
@@ -170,3 +166,13 @@ reqwest = { version = "0.12", features = [
 ], default-features = false }
 bytemuck = "1.23"
 zstd = "0.13"
+
+solana-account = "2.2"
+solana-instruction = "2.2"
+solana-sdk = "2.3"
+svm-tracer = { path = "../svm-tracer/builder" }
+sbpf-parser = { path = "../svm-tracer/loader" }
+mollusk-svm = { version = "0.4.0", features = ["invocation-inspect-callback"] }
+solana-program-runtime = "2.3"
+solana-sbpf = "0.11.1"
+solana-pubkey = "2.2"

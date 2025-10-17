@@ -18,7 +18,6 @@ use std::{
 };
 
 use crate::{RomInstance, RomPlanner};
-use asm_runner::{AsmRHData, AsmRunnerRH};
 use fields::PrimeField64;
 use itertools::Itertools;
 use proofman_common::{AirInstance, FromTrace};
@@ -27,7 +26,7 @@ use zisk_common::{
     Planner,
 };
 use zisk_core::{
-    zisk_ops::ZiskOp, Riscv2zisk, ZiskRom, ROM_ADDR, ROM_ADDR_MAX, ROM_ENTRY, ROM_EXIT, SRC_IMM,
+    zisk_ops::ZiskOp, ZiskRom, ROM_ADDR, ROM_ADDR_MAX, ROM_ENTRY, ROM_EXIT, SRC_IMM,
 };
 use zisk_pil::{MainTrace, RomRomTrace, RomRomTraceRow, RomTrace};
 
@@ -41,8 +40,6 @@ pub struct RomSM {
 
     /// Shared program instruction counter for monitoring ROM operations.
     prog_inst_count: Arc<Vec<AtomicU32>>,
-
-    asm_runner_handler: Mutex<Option<JoinHandle<AsmRunnerRH>>>,
 }
 
 impl RomSM {
@@ -53,10 +50,8 @@ impl RomSM {
     ///
     /// # Returns
     /// An `Arc`-wrapped instance of `RomSM`.
-    pub fn new(zisk_rom: Arc<ZiskRom>, asm_rom_path: Option<PathBuf>) -> Arc<Self> {
-        let (bios_inst_count, prog_inst_count) = if asm_rom_path.is_some() {
-            (vec![], vec![])
-        } else {
+    pub fn new(zisk_rom: Arc<ZiskRom>) -> Arc<Self> {
+        let (bios_inst_count, prog_inst_count) = {
             (
                 create_atomic_vec(((ROM_ADDR - ROM_ENTRY) as usize) >> 2), // No atomics, we can divide by 4
                 create_atomic_vec((ROM_ADDR_MAX - ROM_ADDR) as usize), // Cannot be dividede by 4
@@ -67,12 +62,7 @@ impl RomSM {
             zisk_rom,
             bios_inst_count: Arc::new(bios_inst_count),
             prog_inst_count: Arc::new(prog_inst_count),
-            asm_runner_handler: Mutex::new(None),
         })
-    }
-
-    pub fn set_asm_runner_handler(&self, handler: JoinHandle<AsmRunnerRH>) {
-        *self.asm_runner_handler.lock().unwrap() = Some(handler);
     }
 
     /// Computes the witness for the provided plan using the given ROM.
@@ -96,9 +86,9 @@ impl RomSM {
         tracing::info!("··· Creating Rom instance [{} rows]", rom_trace.num_rows());
 
         // For every instruction in the rom, fill its corresponding ROM trace
-        for (i, key) in rom.insts.keys().sorted().enumerate() {
+        for (i, pc) in rom.pc_iter().sorted().enumerate() {
             // Get the Zisk instruction
-            let inst = &rom.insts[key].i;
+            let inst = rom.get_instruction(pc);
 
             // Calculate the multiplicity, i.e. the number of times this pc is used in this
             // execution
@@ -157,6 +147,7 @@ impl RomSM {
         AirInstance::new_from_trace(FromTrace::new(&mut rom_trace))
     }
 
+<<<<<<< HEAD
     pub fn compute_witness_from_asm<F: PrimeField64>(
         rom: &ZiskRom,
         asm_romh: &AsmRHData,
@@ -206,16 +197,102 @@ impl RomSM {
         AirInstance::new_from_trace(FromTrace::new(&mut rom_trace))
     }
 
+||||||| parent of dee8e3cd (replace the emulator)
+    pub fn compute_witness_from_asm<F: PrimeField64>(
+        rom: &ZiskRom,
+        asm_romh: &AsmRHData,
+        trace_buffer: Vec<F>,
+    ) -> AirInstance<F> {
+        let mut rom_trace = RomTrace::new_from_vec_zeroes(trace_buffer);
+
+        tracing::info!("··· Creating Rom instance [{} rows]", rom_trace.num_rows());
+
+        const MAIN_TRACE_LEN: u64 = MainTrace::<usize>::NUM_ROWS as u64;
+
+        // if asm_romh.bios_inst_count.is_empty() {
+        //     for (i, _) in rom.rom_entry_instructions.iter().enumerate() {
+        //         rom_trace[i].multiplicity = F::ONE;
+        //     }
+        // } else {
+        //     let extra = MAIN_TRACE_LEN - asm_romh.header.steps % MAIN_TRACE_LEN;
+
+        //     for (i, inst) in rom.rom_entry_instructions.iter().enumerate() {
+        //         let idx = ((inst.paddr - ROM_ENTRY) as usize) >> 2;
+
+        //         let mut multiplicity = asm_romh.bios_inst_count[idx];
+
+        //         if multiplicity != 0 {
+        //             if inst.paddr == ROM_EXIT {
+        //                 multiplicity += extra;
+        //             }
+        //             rom_trace[i].multiplicity = F::from_u64(multiplicity);
+        //         }
+        //     }
+        // }
+
+        // for (i, inst) in rom.rom_instructions.iter().enumerate() {
+        //     let idx = (inst.paddr - ROM_ADDR) as usize;
+        //     let multiplicity = asm_romh.prog_inst_count[idx];
+
+        //     if multiplicity != 0 {
+        //         rom_trace[i].multiplicity = F::from_u64(multiplicity);
+        //     }
+        // }
+
+        // For every instruction in the rom, fill its corresponding ROM trace
+        for (i, key) in rom.insts.keys().sorted().enumerate() {
+            // Get the Zisk instruction
+            let inst = &rom.insts[key].i;
+
+            // Calculate the multiplicity, i.e. the number of times this pc is used in this
+            // execution
+            let mut multiplicity: u64;
+            if inst.paddr < ROM_ADDR {
+                if asm_romh.bios_inst_count.is_empty() {
+                    multiplicity = 1; // If the histogram is empty, we use 1 for all pc's
+                } else {
+                    let idx = ((inst.paddr - ROM_ENTRY) as usize) >> 2;
+
+                    multiplicity = asm_romh.bios_inst_count[idx];
+
+                    if multiplicity == 0 {
+                        continue;
+                    }
+
+                    if inst.paddr == ROM_EXIT {
+                        multiplicity += MAIN_TRACE_LEN - asm_romh.steps % MAIN_TRACE_LEN;
+                    }
+                }
+            } else {
+                let idx = (inst.paddr - ROM_ADDR) as usize;
+                multiplicity = asm_romh.prog_inst_count[idx];
+
+                if multiplicity == 0 {
+                    continue;
+                }
+            }
+
+            rom_trace[i].multiplicity = F::from_u64(multiplicity);
+        }
+
+        AirInstance::new_from_trace(FromTrace::new(&mut rom_trace))
+    }
+
+=======
+>>>>>>> dee8e3cd (replace the emulator)
     /// Computes the ROM trace based on the ROM instructions.
     ///
     /// # Arguments
     /// * `rom` - Reference to the Zisk ROM.
     /// * `rom_custom_trace` - Reference to the custom ROM trace.
-    fn compute_trace_rom<F: PrimeField64>(rom: &ZiskRom, rom_custom_trace: &mut RomRomTrace<F>) {
+    pub fn compute_trace_rom<F: PrimeField64>(rom: &ZiskRom, rom_custom_trace: &mut RomRomTrace<F>) {
+        let mut inst_count = 0;
         // For every instruction in the rom, fill its corresponding ROM trace
-        for (i, key) in rom.insts.keys().sorted().enumerate() {
+        for (i, key) in rom.pc_iter().sorted().enumerate() {
+            inst_count += 1;
+
             // Get the Zisk instruction
-            let inst = &rom.insts[key].i;
+            let inst = &rom.get_instruction(key);
 
             // Convert the i64 offsets to F
             let jmp_offset1 = if inst.jmp_offset1 >= 0 {
@@ -270,7 +347,7 @@ impl RomSM {
         }
 
         // Padd with zeroes
-        for i in rom.insts.len()..rom_custom_trace.num_rows() {
+        for i in inst_count..rom_custom_trace.num_rows() {
             rom_custom_trace[i] = RomRomTraceRow::default();
         }
     }
@@ -285,16 +362,8 @@ impl RomSM {
         rom_custom_trace: &mut RomRomTrace<F>,
     ) {
         // Get the ELF file path as a string
-        let elf_filename: String = rom_path.to_str().unwrap().into();
         tracing::info!("Computing custom trace ROM");
-
-        // Load and parse the ELF file, and transpile it into a ZisK ROM using Riscv2zisk
-
-        // Create an instance of the RISCV -> ZisK program converter
-        let riscv2zisk = Riscv2zisk::new(elf_filename);
-
-        // Convert program to rom
-        let rom = riscv2zisk.run().expect("RomSM::prover() failed converting elf to rom");
+        let rom = ZiskRom::load_from_path(rom_path).0;
 
         Self::compute_trace_rom(&rom, rom_custom_trace);
     }
@@ -325,15 +394,11 @@ impl<F: PrimeField64> ComponentBuilder<F> for RomSM {
     /// # Returns
     /// A boxed implementation of `RomInstance`.
     fn build_instance(&self, ictx: InstanceCtx) -> Box<dyn Instance<F>> {
-        let mut handle_rh_guard = self.asm_runner_handler.lock().unwrap();
-        let handle_rh = handle_rh_guard.take();
-
         Box::new(RomInstance::new(
             self.zisk_rom.clone(),
             ictx,
             self.bios_inst_count.clone(),
             self.prog_inst_count.clone(),
-            handle_rh,
         ))
     }
 }

@@ -24,8 +24,6 @@ executor = { workspace = true }
 rom-setup = { workspace = true }
 zisk-core = { workspace = true }
 zisk-pil = { workspace = true }
-asm-runner = { workspace = true }
-server = { workspace = true }
 
 colored = { workspace = true }
 fields = { workspace = true }
@@ -39,9 +37,10 @@ serde_json = { workspace = true }
 anyhow = { workspace = true }
 libloading = { workspace = true }
 
-zstd = { workspace = true }
-bytemuck = { workspace = true }
-clap = { workspace = true }
+
+bytemuck = "1.23.1"
+
+clap = { version = "4.5.7", features = ["derive", "env"] }
 dirs = "6"
 rand = "0.9"
 target-lexicon = "0.13"

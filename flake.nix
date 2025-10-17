@@ -18,6 +18,7 @@
       in {
         devShells.default = pkgs.mkShell {
           packages = [
+            pkgs.nodejs_24
             pkgs.grpc
             pkgs.gmp
             pkgs.jq
@@ -35,7 +36,22 @@
             ++ (pkgs.lib.optionals pkgs.stdenv.isDarwin
               [ pkgs.darwin.apple_sdk.frameworks.Security ]);
 
+          buildInputs = [
+            pkgs.mpich
+            pkgs.mpich-pmix
+            pkgs.llvm
+            pkgs.libclang.lib
+            pkgs.clang
+            #pkgs.cargo
+            #pkgs.cargo-c
+            #pkgs.rustc
+          ];
+
           RUSTFLAGS = (builtins.map (a: "-L ${a}/lib") [ pkgs.libgit2 ]);
+
+          shellHook = ''
+            export LIBCLANG_PATH=${pkgs.libclang.lib}/lib
+          '';
         };
       });
 }

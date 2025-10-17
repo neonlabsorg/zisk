@@ -13,7 +13,6 @@ build = "build.rs"
 zisk-common = { workspace = true }
 executor = { workspace = true }
 zisk-witness = { workspace = true }
-asm-runner = { workspace = true }
 
 proofman = { workspace = true }
 proofman-common = { workspace = true }

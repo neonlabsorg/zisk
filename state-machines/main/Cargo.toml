@@ -14,7 +14,6 @@ zisk-common = { workspace = true }
 zisk-pil = { workspace = true }
 sm-mem = { workspace = true }
 mem-common = { workspace = true }
-asm-runner = { workspace = true }
 
 proofman = { workspace = true }
 proofman-common = { workspace = true }

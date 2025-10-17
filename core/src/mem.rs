@@ -88,10 +88,14 @@ pub const INPUT_ADDR: u64 = 0x90000000;
 pub const MAX_INPUT_SIZE: u64 = 0x08000000; // 128M,
 /// Free input data memory address = first input address
 pub const FREE_INPUT_ADDR: u64 = INPUT_ADDR;
+
+pub const ACCOUNTS_ADDR: u64 = 0x10000_0000;
+pub const ACCOUNTS_SIZE: u64 = 0x10000_0000;
+
 /// First global RW memory address
-pub const RAM_ADDR: u64 = 0xa0000000;
+pub const RAM_ADDR: u64 = 0x20000_0000;
 /// Size of the global RW memory
-pub const RAM_SIZE: u64 = 0x20000000; // 512M
+pub const RAM_SIZE: u64 = 0x10000000; // 512M
 /// First system RW memory address
 pub const SYS_ADDR: u64 = RAM_ADDR;
 /// Size of the system RW memory
@@ -163,7 +167,7 @@ impl MemSection {
 #[derive(Debug, Default)]
 pub struct Mem {
     pub read_sections: Vec<MemSection>,
-    pub write_section: MemSection,
+    pub write_sections: Vec<MemSection>,
     pub free_input: u64,
 }
 
@@ -171,7 +175,7 @@ impl Mem {
     /// Memory structure constructor
     pub fn new() -> Mem {
         //println!("Mem::new()");
-        Mem { read_sections: Vec::new(), write_section: MemSection::new(), free_input: 0 }
+        Mem { read_sections: Vec::new(), write_sections: Vec::new(), free_input: 0 }
     }
 
     /// Adds a read section to the memory structure
@@ -234,11 +238,7 @@ impl Mem {
         self.read_sections.push(new_section);
     }
 
-    /// Adds a write section to the memory structure, which cannot be written twice
-    pub fn add_write_section(&mut self, start: u64, size: u64) {
-        //println!("Mem::add_write_section() start={:x}={} size={:x}={}", start, start, size,
-        // size);
-
+    pub fn add_write_section(&mut self, start: u64, len: u64) {
         // Check that the start address is alligned to 8 bytes
         if (start & 0x07) != 0 {
             panic!(
@@ -251,22 +251,35 @@ impl Mem {
             panic!("Mem::add_write_section() got invalid start={start}");
         }
 
-        // Check the write section address has not been set before this call, since one only write
-        // section is allowed
-        if self.write_section.start != 0 {
+        let end = start + len;
+        self.write_sections.push(MemSection {
+            buffer: vec![0; len as usize],
+            start,
+            end,
+            real_end: end
+        });
+    }
+
+    pub fn add_inited_write_section(&mut self, start: u64, mem: &[u8]) {
+        // Check that the start address is alligned to 8 bytes
+        if (start & 0x07) != 0 {
             panic!(
-                "Mem::add_write_section() only one write section allowed, write_section.start={}",
-                self.write_section.start
+                "Mem::add_write_section() got a start address={start:x} not alligned to 8 bytes"
             );
         }
 
-        // Create an empty vector of size bytes
-        let mem: Vec<u8> = vec![0; size as usize];
+        // Check the start address is not zero
+        if start == 0 {
+            panic!("Mem::add_write_section() got invalid start={start}");
+        }
 
-        // Store as the write section
-        self.write_section.start = start;
-        self.write_section.end = start + mem.len() as u64;
-        self.write_section.buffer = mem;
+        let end = start + mem.len() as u64;
+        self.write_sections.push(MemSection {
+            buffer: mem.to_vec(),
+            start,
+            end,
+            real_end: end
+        });
     }
 
     /// Reads a 1, 2, 4 or 8 bytes value from the memory read sections, based on the provided
@@ -276,27 +289,29 @@ impl Mem {
         debug_assert!(!Mem::address_is_register(addr));
 
         // First try to read in the write section
-        if (addr >= self.write_section.start) && (addr <= (self.write_section.end - width)) {
-            // Calculate the read position
-            let read_position: usize = (addr - self.write_section.start) as usize;
+        for section in self.write_sections.as_slice() {
+            if (addr >= section.start) && (addr <= (section.end - width)) {
+                // Calculate the read position
+                let read_position: usize = (addr - section.start) as usize;
 
-            // Read the requested data based on the provided width
-            let value: u64 = match width {
-                1 => self.write_section.buffer[read_position] as u64,
-                2 => u16::from_le_bytes(
-                    self.write_section.buffer[read_position..read_position + 2].try_into().unwrap(),
-                ) as u64,
-                4 => u32::from_le_bytes(
-                    self.write_section.buffer[read_position..read_position + 4].try_into().unwrap(),
-                ) as u64,
-                8 => u64::from_le_bytes(
-                    self.write_section.buffer[read_position..read_position + 8].try_into().unwrap(),
-                ),
-                _ => panic!("Mem::read() invalid width={width}"),
-            };
+                // Read the requested data based on the provided width
+                let value: u64 = match width {
+                    1 => section.buffer[read_position] as u64,
+                    2 => u16::from_le_bytes(
+                        section.buffer[read_position..read_position + 2].try_into().unwrap(),
+                    ) as u64,
+                    4 => u32::from_le_bytes(
+                        section.buffer[read_position..read_position + 4].try_into().unwrap(),
+                    ) as u64,
+                    8 => u64::from_le_bytes(
+                        section.buffer[read_position..read_position + 8].try_into().unwrap(),
+                    ),
+                    _ => panic!("Mem::read() invalid width={width}"),
+                };
 
-            //println!("Mem::read() addr={:x} width={} value={:x}={}", addr, width, value, value);
-            return value;
+                //println!("Mem::read() addr={:x} width={} value={:x}={}", addr, width, value, value);
+                return value;
+            }
         }
 
         // Search for the section that contains the address using binary search (dicothomic search).
@@ -365,70 +380,72 @@ impl Mem {
         let is_single_not_aligned = !is_full_aligned && (addr_req_1 == addr_req_2);
         let is_double_not_aligned = !is_full_aligned && !is_single_not_aligned;
 
-        // First try to read in the write section
-        if (addr >= self.write_section.start) && (addr <= (self.write_section.end - width)) {
-            // Calculate the read position
-            let read_position: usize = (addr - self.write_section.start) as usize;
+        for section in self.write_sections.as_slice() {
+            // First try to read in the write section
+            if (addr >= section.start) && (addr <= (section.end - width)) {
+                // Calculate the read position
+                let read_position: usize = (addr - section.start) as usize;
 
-            // Read the requested data based on the provided width
-            let value: u64 = match width {
-                1 => self.write_section.buffer[read_position] as u64,
-                2 => u16::from_le_bytes(
-                    self.write_section.buffer[read_position..read_position + 2].try_into().unwrap(),
-                ) as u64,
-                4 => u32::from_le_bytes(
-                    self.write_section.buffer[read_position..read_position + 4].try_into().unwrap(),
-                ) as u64,
-                8 => u64::from_le_bytes(
-                    self.write_section.buffer[read_position..read_position + 8].try_into().unwrap(),
-                ),
-                _ => panic!("Mem::read() invalid width={width}"),
-            };
+                // Read the requested data based on the provided width
+                let value: u64 = match width {
+                    1 => section.buffer[read_position] as u64,
+                    2 => u16::from_le_bytes(
+                        section.buffer[read_position..read_position + 2].try_into().unwrap(),
+                    ) as u64,
+                    4 => u32::from_le_bytes(
+                        section.buffer[read_position..read_position + 4].try_into().unwrap(),
+                    ) as u64,
+                    8 => u64::from_le_bytes(
+                        section.buffer[read_position..read_position + 8].try_into().unwrap(),
+                    ),
+                    _ => panic!("Mem::read() invalid width={width}"),
+                };
 
-            // If is a single not aligned operation, return the aligned address value
-            if is_single_not_aligned {
-                let mut additional_data: Vec<u64> = Vec::new();
+                // If is a single not aligned operation, return the aligned address value
+                if is_single_not_aligned {
+                    let mut additional_data: Vec<u64> = Vec::new();
 
-                assert!(addr_req_1 >= self.write_section.start);
-                let read_position_req: usize = (addr_req_1 - self.write_section.start) as usize;
-                let value_req = u64::from_le_bytes(
-                    self.write_section.buffer[read_position_req..read_position_req + 8]
-                        .try_into()
-                        .unwrap(),
-                );
-                additional_data.push(value_req);
+                    assert!(addr_req_1 >= section.start);
+                    let read_position_req: usize = (addr_req_1 - section.start) as usize;
+                    let value_req = u64::from_le_bytes(
+                        section.buffer[read_position_req..read_position_req + 8]
+                            .try_into()
+                            .unwrap(),
+                    );
+                    additional_data.push(value_req);
 
-                return (value, additional_data);
+                    return (value, additional_data);
+                }
+
+                // If is a double not aligned operation, return the aligned address value and the next
+                // one
+                if is_double_not_aligned {
+                    let mut additional_data: Vec<u64> = Vec::new();
+
+                    assert!(addr_req_1 >= section.start);
+                    let read_position_req_1: usize = (addr_req_1 - section.start) as usize;
+                    let value_req_1 = u64::from_le_bytes(
+                        section.buffer[read_position_req_1..read_position_req_1 + 8]
+                            .try_into()
+                            .unwrap(),
+                    );
+                    additional_data.push(value_req_1);
+
+                    assert!(addr_req_2 >= section.start);
+                    let read_position_req_2: usize = (addr_req_2 - section.start) as usize;
+                    let value_req_2 = u64::from_le_bytes(
+                        section.buffer[read_position_req_2..read_position_req_2 + 8]
+                            .try_into()
+                            .unwrap(),
+                    );
+                    additional_data.push(value_req_2);
+
+                    return (value, additional_data);
+                }
+
+                //println!("Mem::read() addr={:x} width={} value={:x}={}", addr, width, value, value);
+                return (value, Vec::new());
             }
-
-            // If is a double not aligned operation, return the aligned address value and the next
-            // one
-            if is_double_not_aligned {
-                let mut additional_data: Vec<u64> = Vec::new();
-
-                assert!(addr_req_1 >= self.write_section.start);
-                let read_position_req_1: usize = (addr_req_1 - self.write_section.start) as usize;
-                let value_req_1 = u64::from_le_bytes(
-                    self.write_section.buffer[read_position_req_1..read_position_req_1 + 8]
-                        .try_into()
-                        .unwrap(),
-                );
-                additional_data.push(value_req_1);
-
-                assert!(addr_req_2 >= self.write_section.start);
-                let read_position_req_2: usize = (addr_req_2 - self.write_section.start) as usize;
-                let value_req_2 = u64::from_le_bytes(
-                    self.write_section.buffer[read_position_req_2..read_position_req_2 + 8]
-                        .try_into()
-                        .unwrap(),
-                );
-                additional_data.push(value_req_2);
-
-                return (value, additional_data);
-            }
-
-            //println!("Mem::read() addr={:x} width={} value={:x}={}", addr, width, value, value);
-            return (value, Vec::new());
         }
 
         // Search for the section that contains the address using binary search (dicothomic search)
@@ -530,8 +547,7 @@ impl Mem {
         //println!("Mem::write() addr={:x}={} width={} value={:x}={}", addr, addr, width, val,
         // val);
 
-        // Search for the section that contains the address using binary search (dicothomic search)
-        let section = if let Ok(section) = self.read_sections.binary_search_by(|section| {
+        let cmp = |section: &MemSection| {
             if addr < section.start {
                 std::cmp::Ordering::Greater
             } else if addr > (section.end - width) {
@@ -539,14 +555,18 @@ impl Mem {
             } else {
                 std::cmp::Ordering::Equal
             }
-        }) {
+        };
+
+        // Search for the section that contains the address using binary search (dicothomic search)
+        let section = if let Ok(section) = self.read_sections.binary_search_by(cmp) {
             &mut self.read_sections[section]
         } else {
             /*panic!(
                 "Mem::write_silent() section not found for addr={:x}={} with width: {}",
                 addr, addr, width
             );*/
-            &mut self.write_section
+            let section = self.write_sections.binary_search_by(cmp).unwrap();
+            &mut self.write_sections[section]
         };
 
         // Check that the address and width fall into this section address range
@@ -579,8 +599,7 @@ impl Mem {
         //println!("Mem::write() addr={:x}={} width={} value={:x}={}", addr, addr, width, val,
         // val);
 
-        // Search for the section that contains the address using binary search (dicothomic search)
-        let section = if let Ok(section) = self.read_sections.binary_search_by(|section| {
+        let cmp = |section: &MemSection| {
             if addr < section.start {
                 std::cmp::Ordering::Greater
             } else if addr > (section.end - width) {
@@ -588,14 +607,18 @@ impl Mem {
             } else {
                 std::cmp::Ordering::Equal
             }
-        }) {
+        };
+
+        // Search for the section that contains the address using binary search (dicothomic search)
+        let section = if let Ok(section) = self.read_sections.binary_search_by(cmp) {
             &mut self.read_sections[section]
         } else {
             /*panic!(
                 "Mem::write_silent() section not found for addr={:x}={} with width: {}",
                 addr, addr, width
             );*/
-            &mut self.write_section
+            let section = self.write_sections.binary_search_by(cmp).unwrap();
+            &mut self.write_sections[section]
         };
 
         // Check that the address and width fall into this section address range

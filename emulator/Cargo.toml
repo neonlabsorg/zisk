@@ -11,10 +11,6 @@ categories = { workspace = true }
 name = "ziskemu"
 path = "src/lib.rs"
 
-[[bin]]
-name = "ziskemu"
-path = "src/bin/ziskemu.rs"
-
 [dependencies]
 zisk-common = { workspace = true }
 zisk-core = { workspace = true }
@@ -22,14 +18,28 @@ zisk-pil = { workspace = true }
 riscv = { workspace = true }
 data-bus = { workspace = true }
 rayon = { workspace = true }
+<<<<<<< HEAD
 sm-mem = { workspace = true }
 mem-common = { workspace = true }
 sm-arith = { workspace = true }
 sm-binary = { workspace = true }
+||||||| parent of dee8e3cd (replace the emulator)
+sm-mem = { path = "../state-machines/mem" }
+=======
+sm-mem = { path = "../state-machines/mem" }
+svm-tracer = { workspace = true }
+mollusk-svm = { workspace = true }
+sbpf-parser.workspace = true
+>>>>>>> dee8e3cd (replace the emulator)
 
 fields = { workspace=true }
 clap = { workspace = true }
 sysinfo = { workspace = true }
+serde_json.workspace = true
+solana-instruction.workspace = true
+solana-pubkey.workspace = true
+solana-account.workspace = true
+solana-sdk.workspace = true
 
 [build-dependencies]
 vergen = { version = "8", default-features = false, features = [

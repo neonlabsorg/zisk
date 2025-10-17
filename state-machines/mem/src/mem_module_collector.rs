@@ -26,11 +26,17 @@ pub struct MemModuleCollector {
     /// Collected inputs
     pub inputs: Vec<MemInput>,
     pub prev_segment: Option<MemPreviousSegment>,
+<<<<<<< HEAD
     pub min_addr: u32,
     pub filter_min_addr: u32,
     pub filter_max_addr: u32,
     pub aligned_min_addr: u32,
     pub aligned_max_addr: u32,
+||||||| parent of dee8e3cd (replace the emulator)
+    pub min_addr: u32,
+=======
+    pub min_addr: u64,
+>>>>>>> dee8e3cd (replace the emulator)
     pub _segment_id: SegmentId,
     pub count: u32,
     pub to_count: u32,
@@ -44,7 +50,7 @@ pub struct MemModuleCollector {
 impl MemModuleCollector {
     pub fn new(
         mem_check_point: &MemModuleCheckPoint,
-        min_addr: u32,
+        min_addr: u64,
         segment_id: SegmentId,
         is_first_chunk_of_segment: bool,
         is_dual: bool,
@@ -77,6 +83,7 @@ impl MemModuleCollector {
         }
     }
 
+<<<<<<< HEAD
     fn update_state(state: DualState, is_write: bool) -> DualState {
         if is_write {
             DualState::Write
@@ -89,6 +96,35 @@ impl MemModuleCollector {
     }
 
     fn discard_align_addr(&mut self, addr_w: u32) -> bool {
+||||||| parent of dee8e3cd (replace the emulator)
+    /// Discards the given memory access if it is not part of the current segment.
+    ///
+    /// This function checks whether the given memory access (defined by `addr`, `step`, and `value`)
+    /// should be discarded. If the access is not part of the current segment, the function returns `true`.
+    ///
+    /// # Parameters
+    /// - `addr`: The memory address (8 bytes aligned).
+    /// - `step`: The mem_step of the memory access.
+    /// - `value`: The value to be read or written.
+    ///
+    /// # Returns
+    /// `true` if the access should be discarded, `false` otherwise.
+    fn discart_addr_step(&mut self, addr_w: u32, step: u64, value: u64) -> bool {
+=======
+    /// Discards the given memory access if it is not part of the current segment.
+    ///
+    /// This function checks whether the given memory access (defined by `addr`, `step`, and `value`)
+    /// should be discarded. If the access is not part of the current segment, the function returns `true`.
+    ///
+    /// # Parameters
+    /// - `addr`: The memory address (8 bytes aligned).
+    /// - `step`: The mem_step of the memory access.
+    /// - `value`: The value to be read or written.
+    ///
+    /// # Returns
+    /// `true` if the access should be discarded, `false` otherwise.
+    fn discart_addr_step(&mut self, addr_w: u64, step: u64, value: u64) -> bool {
+>>>>>>> dee8e3cd (replace the emulator)
         // Check if the address is out of the range of the current checkpoint, or
         // out of memory area.
         addr_w < self.aligned_min_addr || addr_w > self.filter_max_addr
