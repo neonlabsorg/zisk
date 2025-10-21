@@ -109,7 +109,7 @@ pub const AVAILABLE_MEM_ADDR: u64 = OUTPUT_ADDR + OUTPUT_MAX_SIZE;
 /// Size of the general purpose RW memory address
 pub const AVAILABLE_MEM_SIZE: u64 = RAM_SIZE - OUTPUT_MAX_SIZE - SYS_SIZE;
 /// First BIOS instruction address, i.e. first instruction executed
-pub const ROM_ENTRY: u64 = 0x1000;
+pub const ROM_ENTRY: u64 = 0x1008;
 /// Last BIOS instruction address, i.e. last instruction executed
 pub const ROM_EXIT: u64 = 0x1004;
 /// First program ROM instruction address, i.e. first RISC-V transpiled instruction

@@ -115,7 +115,7 @@ fn ireg_for_bpf_reg(reg: u8) -> i64 {
     (BASE_REG + reg as u64) as i64
 }
 
-type PcCallMap = BTreeMap<u64, u64>;
+type PcCallMap = BTreeMap<u32, u64>;
 
 /// ZisK ROM implementation
 impl ZiskRom {
@@ -125,103 +125,66 @@ impl ZiskRom {
 
     fn transpile_op(op: &solana_sbpf::ebpf::Insn, pc: u64, translate_pc_routine: u64, version: &SBPFVersion, call_map: &PcCallMap) -> Vec<ZiskInst> {
         use solana_sbpf::ebpf::*;
-        let (width, mask) = if BPF_B & op.opc != 0 {
-            (1, (1_u64 << 8) - 1)
-        } else if BPF_H & op.opc != 0 {
-            (2, (1_u64 << 16) - 1)
-        } else if BPF_W & op.opc != 0 {
-            (4, (1_u64 << 32) - 1)
-        } else if BPF_DW & op.opc != 0 {
-            (8, !0_u64)
+        //indirection modifiers
+        let (width, mask) = if version.move_memory_instruction_classes() {
+            match op.opc & 0xB0 {
+                BPF_1B => (1, (1_u64 << 8) - 1),
+                BPF_2B => (2, (1_u64 << 16) - 1),
+                BPF_4B => (4, (1_u64 << 32) - 1),
+                BPF_8B | _ => (8, !0_u64),
+            }
         } else {
-            (8, !0_u64)
+            match op.opc & 0x18 {
+                BPF_W => (4, (1_u64 << 32) - 1),
+                BPF_B => (1, (1_u64 << 8) - 1),
+                BPF_H => (2, (1_u64 << 16) - 1),
+                BPF_DW => (8, !0_u64),
+                _ => panic!("cant happen")
+            }
         };
 
-        let arith_op =
-        if BPF_MUL & op.opc != 0 {
-            if BPF_ALU32_LOAD & op.opc != 0 {
-                "mul_w"
-            } else {
-                "mul"
+        let arith_op = if op.opc & 7 == BPF_PQR && version.enable_pqr() {
+            // Operation codes -- BPF_PQR class:
+            //    7         6               5                               4       3          2-0
+            // 0  Unsigned  Multiplication  Product Lower Half / Quotient   32 Bit  Immediate  PQR
+            // 1  Signed    Division        Product Upper Half / Remainder  64 Bit  Register   PQR
+            let mask64 = 0x10;
+            match op.opc & 0xC0 {
+                BPF_SREM => if mask64 & op.opc != 0 { "rem" } else { "rem_w" },
+                BPF_SDIV => if mask64 & op.opc != 0 { "div" } else { "div_w" },
+                BPF_UREM => if mask64 & op.opc != 0 { "remu" } else { "remu_w" },
+                BPF_LMUL => "mulu",
+                BPF_SHMUL => "mulsuh",
+                BPF_UHMUL => "muluh",
+                _ => ""
             }
-        } else if BPF_ADD & op.opc != 0 {
-            if BPF_ALU32_LOAD & op.opc != 0 {
-                "add_w"
-            } else {
-                "add"
-            }
-        } else if BPF_OR & op.opc != 0 {
-            "or"
-        } else if BPF_XOR & op.opc != 0 {
-            "xor"
-        } else if BPF_AND & op.opc != 0 {
-            "and"
-
-        } else if BPF_SUB & op.opc != 0 {
-            if BPF_ALU32_LOAD & op.opc != 0 {
-                "sub_w"
-            } else {
-                "sub"
-            }
-        } else if BPF_SDIV & op.opc != 0 {
-            if BPF_ALU32_LOAD & op.opc != 0 {
-                "div_w"
-            } else {
-                "div"
-            }
-        } else if (BPF_DIV & op.opc != 0) || (BPF_UDIV & op.opc != 0) {
-            if BPF_ALU32_LOAD & op.opc != 0 {
-                "divu_w"
-            } else {
-                "divu"
-            }
-        } else if BPF_MOD & op.opc != 0 {
-            if BPF_ALU32_LOAD & op.opc != 0 {
-                "rem_w"
-            } else {
-                "rem"
-            }
-        } else if BPF_UREM & op.opc != 0 {
-            if BPF_ALU32_LOAD & op.opc != 0 {
-                "remu_w"
-            } else {
-                "remu"
-            }
-        } else if BPF_SREM & op.opc != 0 {
-            if BPF_ALU32_LOAD & op.opc != 0 {
-                "rem_w"
-            } else {
-                "rem"
-            }
-
-        } else if BPF_LSH & op.opc != 0 {
-            if BPF_ALU32_LOAD & op.opc != 0 {
-                "sll_w"
-            } else {
-                "sll"
-            }
-        } else if BPF_RSH & op.opc != 0 {
-            if BPF_ALU32_LOAD & op.opc != 0 {
-                "srl_w"
-            } else {
-                "srl"
-            }
-        } else if BPF_ARSH & op.opc != 0 {
-            if BPF_ALU32_LOAD & op.opc != 0 {
-                "sra_w"
-            } else {
-                "sra"
-            }
-        } else if BPF_LMUL & op.opc != 0 {
-            "mulu"
-        } else if BPF_SHMUL & op.opc != 0 {
-            "mulsuh"
-        } else if BPF_SHMUL & op.opc != 0 {
-            "muluh"
         } else {
-            ""
+            // For arithmetic (BPF_ALU/BPF_ALU64_STORE) and jump (BPF_JMP) instructions:
+            // +----------------+--------+--------+
+            // |     4 bits     |1 b.|   3 bits   |
+            // | operation code | src| insn class |
+            // +----------------+----+------------+
+            // (MSB)                          (LSB)
+            match 0xF0 & op.opc {
+                BPF_ADD => if BPF_ALU32_LOAD & op.opc != 0 { "add_w" } else { "add" },
+                BPF_SUB => if BPF_ALU32_LOAD & op.opc != 0 { "sub_w" } else { "sub" },
+                BPF_MUL => if BPF_ALU32_LOAD & op.opc != 0 { "mul_w" } else { "mul" },
+                BPF_DIV /*| BPF_UDIV*/ => if BPF_ALU32_LOAD & op.opc != 0 { "divu_w" } else { "divu" },
+                BPF_OR => "or",
+                BPF_AND => "and",
+                BPF_LSH => if BPF_ALU32_LOAD & op.opc != 0 { "sll_w" } else { "sll" },
+                BPF_RSH => if BPF_ALU32_LOAD & op.opc != 0 { "srl_w" } else { "srl" },
+                // neg not handled like arith
+                BPF_MOD => if BPF_ALU32_LOAD & op.opc != 0 { "rem_w" } else { "rem" },
+                BPF_XOR => "xor",
+                // mov not handled like arith
+                BPF_ARSH => if BPF_ALU32_LOAD & op.opc != 0 { "sra_w" } else { "sra" },
+                // END (endianness) not handled like arith
+                // BPF_HOR also not handled like arith
+                _ => ""
+            }
         };
-
+        
         let load_impl = if op.off < 0 {
             vec![
                 {
@@ -244,7 +207,7 @@ impl ZiskRom {
                 {
                     let mut builder = ZiskInstBuilder::new(pc + 2);
                     builder.src_a("reg", SCRATCH_REG, false);
-                    builder.src_b("ind", op.off.try_into().unwrap(), false);
+                    builder.src_b("ind", 0, false);
                     builder.store("reg", ireg_for_bpf_reg(op.dst), false, false);
                     builder.op("copyb").unwrap();
                     builder.ind_width(width);
@@ -522,7 +485,7 @@ impl ZiskRom {
             ],
 
             // BPF opcode: `hor64 dst, imm` /// `dst |= imm << 32`.
-            HOR64_IMM => vec![
+            HOR64_IMM if version.disable_lddw() => vec![
                 {
                     let mut builder = ZiskInstBuilder::new(pc);
                     builder.src_a("reg", reg_for_bpf_reg(op.dst), false);
@@ -907,7 +870,7 @@ impl ZiskRom {
 
 
             // BPF opcode: `exit` /// `return r0`. /// Valid only until SBPFv3
-            EXIT if version.static_syscalls() => Self::gen_pop_frame(pc),
+            EXIT if !version.static_syscalls() => Self::gen_pop_frame(pc),
 
             // BPF opcode: `return` /// `return r0`. /// Valid only since SBPFv3
             RETURN => Self::gen_pop_frame(pc),
@@ -916,7 +879,11 @@ impl ZiskRom {
             CALL_IMM | SYSCALL => Self::gen_push_frame(version, pc, pc + TRANSPILE_ALIGN as u64,
                 |pc| {
                     let mut builder = ZiskInstBuilder::new(pc);
-                    let pc = *call_map.get(&(op.imm as u64)).unwrap();
+                    let pc = call_map.get(&(op.imm as u32));
+                    if pc.is_none() {
+                        println!("not found for imm {0}", op.imm);
+                    }
+                    let pc = *pc.unwrap();
                     builder.src_a("imm", pc, false);
                     builder.src_b("imm", pc, false);
                     builder.store("reg", SCRATCH_REG as i64, false, false);
@@ -1156,13 +1123,13 @@ impl ZiskRom {
     }
  
     pub fn new(key: Pubkey, program: ProcessedElf, bios: &ProcessedElf) -> Self {
-        let mut call_map = BTreeMap::<u64, u64>::new();
+        let mut call_map = BTreeMap::<u32, u64>::new();
         const ENTRYPOINT_KEY: u32 = 0x71E3CF81;
         let entry_pc = program.function_registry.lookup_by_key(ENTRYPOINT_KEY).unwrap().1 as u64;
 
         let sys_pc = ROM_ENTRY + 4 * TRANSPILE_ALIGN as u64;
         for (key, (_symbol, pc)) in bios.function_registry.iter() {
-            call_map.insert(key as u64, sys_pc + pc as u64 * TRANSPILE_ALIGN as u64);
+            call_map.insert(key as u32, sys_pc + pc as u64 * TRANSPILE_ALIGN as u64);
         }
 
         assert!(ROM_ENTRY % TRANSPILE_ALIGN as u64 == 0);
@@ -1283,7 +1250,7 @@ impl ZiskRom {
             }));
 
         for (key, (_symbol, pc)) in program.function_registry.iter() {
-            call_map.insert(key as u64, ROM_ADDR + pc as u64 * TRANSPILE_ALIGN as u64);
+            call_map.insert(key as u32, ROM_ADDR + pc as u64 * TRANSPILE_ALIGN as u64);
         }
 
         let transpiled_instructions = program.all_lines.as_slice().iter().map(|op| {
