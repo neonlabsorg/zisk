@@ -85,6 +85,8 @@ ziskclib = { path = "ziskclib" }
 ziskos = { path = "ziskos/entrypoint" }
 circuit = { path = "tools/circuit" }
 
+serde_with = { version = "3.15.1", features = ["hex","base64"] }
+
 # Distributed crates
 zisk-distributed-common = { path = "distributed/crates/common" }
 zisk-distributed-coordinator = { path = "distributed/crates/coordinator" }

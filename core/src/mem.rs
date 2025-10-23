@@ -79,6 +79,8 @@
 //! * The third RW memory region going from `AVAILABLE_MEM_ADDR` onwards can be used during the
 //!   program execution as general purpose memory.
 
+use solana_sbpf::ebpf;
+
 use crate::{M16, M3, M32, M8, REG_FIRST, REG_LAST};
 use core::fmt;
 
@@ -109,17 +111,22 @@ pub const AVAILABLE_MEM_ADDR: u64 = OUTPUT_ADDR + OUTPUT_MAX_SIZE;
 /// Size of the general purpose RW memory address
 pub const AVAILABLE_MEM_SIZE: u64 = RAM_SIZE - OUTPUT_MAX_SIZE - SYS_SIZE;
 /// First BIOS instruction address, i.e. first instruction executed
-pub const ROM_ENTRY: u64 = 0x1008;
+pub const ROM_ENTRY: u64 = 0x1004;
 /// Last BIOS instruction address, i.e. last instruction executed
-pub const ROM_EXIT: u64 = 0x1004;
+pub const ROM_EXIT: u64 = 0x7ffffff8;
 /// First program ROM instruction address, i.e. first RISC-V transpiled instruction
-pub const ROM_ADDR: u64 = 0x80000000;
+pub const ROM_ADDR: u64 = 0x8000000C;
 /// Maximum program ROM instruction address
 pub const ROM_ADDR_MAX: u64 = (ROM_ADDR + 0x08000000) - 1; // 128M
 /// Zisk architecture ID
 pub const ARCH_ID_ZISK: u64 = 0xFFFEEEE;
 /// UART memory address; single bytes written here will be copied to the standard output
 pub const UART_ADDR: u64 = SYS_ADDR + 512;
+
+pub const FRAME_REGS_LEN: u64 = 13*8*200;
+pub const FRAME_REGS_START: u64 = ebpf::MM_HEAP_START - FRAME_REGS_LEN;
+pub const SYSCALL_ENTER_FRAME: u64 = 0x2FFFF9EC0;
+
 
 /// Memory section data, including a buffer (a vector of bytes) and start and end program
 /// memory addresses.
@@ -185,6 +192,11 @@ impl Mem {
             panic!("Mem::add_read_section() got a start address={start:x} not alligned to 8 bytes");
         }
 
+        let mut buffer = buffer.to_vec();
+        while (buffer.len() & 0x07) != 0 {
+            buffer.push(0);
+        }
+
         // Calculate the end address
         let end = start + buffer.len() as u64;
 
@@ -202,7 +214,7 @@ impl Mem {
                 }
 
                 // Append buffer
-                existing_section.buffer.extend(buffer);
+                existing_section.buffer.extend(buffer.as_slice());
                 existing_section.real_end += buffer.len() as u64;
                 existing_section.end = existing_section.real_end;
 
@@ -252,6 +264,7 @@ impl Mem {
         }
 
         let end = start + len;
+        assert!((end & 0x07) == 0);
         self.write_sections.push(MemSection {
             buffer: vec![0; len as usize],
             start,
@@ -273,9 +286,14 @@ impl Mem {
             panic!("Mem::add_write_section() got invalid start={start}");
         }
 
+        let mut mem = mem.to_vec();
+        while mem.len() & 0x07 != 0 {
+            mem.push(0);
+        }
+
         let end = start + mem.len() as u64;
         self.write_sections.push(MemSection {
-            buffer: mem.to_vec(),
+            buffer: mem,
             start,
             end,
             real_end: end
@@ -782,4 +800,41 @@ impl Mem {
     }
 
     //pub fn get_non_aligned_data_from_required(address: u64, width: u8,)
+
+    fn pad_init_regions_sections_vec(sections: &mut Vec<MemSection>) {
+        sections.sort_by(|a, b| a.start.cmp(&b.start));
+        for i in 0..sections.len() {
+            let mut padded = 0;
+            while {
+                if i + 1 == sections.len() {
+                    padded < 8
+                } else {
+                    padded < 8 && sections[i].end < sections[i + 1].start
+                }
+            } {
+                sections[i].buffer.push(0);
+                sections[i].end += 1;
+                sections[i].real_end += 1;
+                padded += 1;
+            }
+        }
+        let mut i = 0;
+        while i + 1 < sections.len() {
+            if sections[i].end == sections[i + 1].start {
+                let section = sections.remove(i + 1);
+                let len = section.buffer.len() as u64;
+                sections[i].end += len;
+                sections[i].real_end += len;
+                sections[i].buffer.extend_from_slice(section.buffer.as_slice());
+            } else {
+                i += 1;
+            }
+        }
+    }
+
+    pub fn pad_init_regions(&mut self) {
+        Self::pad_init_regions_sections_vec(&mut self.read_sections);
+        Self::pad_init_regions_sections_vec(&mut self.write_sections);
+    }
+
 }

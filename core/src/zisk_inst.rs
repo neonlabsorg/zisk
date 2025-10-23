@@ -142,6 +142,8 @@ pub struct ZiskInst {
     pub m32: bool,
     pub input_size: u64,
     pub sorted_pc_list_index: usize,
+
+    pub comment: Option<String>,
 }
 
 /// Default constructor
@@ -178,6 +180,7 @@ impl Default for ZiskInst {
             m32: false,
             input_size: 0,
             sorted_pc_list_index: 0,
+            comment: None
         }
     }
 }

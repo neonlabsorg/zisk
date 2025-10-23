@@ -23,7 +23,7 @@ use zisk_common::ZiskLibInitFn;
 #[command(propagate_version = true)]
 #[command(group(
     clap::ArgGroup::new("input_mode")
-        .args(["asm", "emulator"])
+        .args(["emulator"])
         .multiple(false)
         .required(false)
 ))]

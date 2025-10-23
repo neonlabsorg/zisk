@@ -34,6 +34,8 @@ solana-instruction.workspace = true
 solana-pubkey.workspace = true
 solana-account.workspace = true
 solana-sdk.workspace = true
+serde_with.workspace = true
+serde.workspace = true
 
 [build-dependencies]
 vergen = { version = "8", default-features = false, features = [

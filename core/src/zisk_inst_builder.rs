@@ -235,7 +235,12 @@ impl ZiskInstBuilder {
     }
 
     /// Called when the instruction has been built
-    pub fn build(&mut self) {
+    pub fn build(self) -> ZiskInst {
         //print!("ZiskInstBuilder::build() i=[ {} ]\n", self.i.to_string());
+        self.i
+    }
+
+    pub fn comment(&mut self, comment: &str) {
+        self.i.comment = Some(comment.to_string())
     }
 }

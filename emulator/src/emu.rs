@@ -7,6 +7,9 @@ use sbpf_parser::mem::TxInput;
 use solana_pubkey::Pubkey;
 use svm_tracer::error::EmulationError;
 use svm_tracer::InstructionTraceBuilder;
+use solana_instruction::{AccountMeta, Instruction};
+use serde_with::{serde_as, DisplayFromStr, hex::Hex};
+use serde::{Deserialize, Serialize};
 
 use crate::{EmuContext, EmuFullTraceStep, EmuOptions, EmuRegTrace, ParEmuOptions};
 use fields::PrimeField64;
@@ -19,10 +22,52 @@ use data_bus::DataBusTrait;
 use zisk_common::{EmuTrace, EmuTraceStart};
 use zisk_core::zisk_ops::ZiskOp;
 use zisk_core::{
-    EmulationMode, InstContext, Mem, ZiskInst, ZiskOperationType, ZiskRom, reg_for_bpf_reg, OUTPUT_ADDR, ROM_ENTRY,
-    SRC_C, SRC_IMM, SRC_IND, SRC_MEM, SRC_REG, SRC_STEP, STORE_IND, STORE_MEM, STORE_NONE,
-    STORE_REG,
+    reg_for_bpf_reg, EmulationMode, InstContext, Mem, ZiskInst, ZiskOperationType, ZiskRom, FRAME_REGS_LEN, FRAME_REGS_START, OUTPUT_ADDR, ROM_ENTRY, SRC_C, SRC_IMM, SRC_IND, SRC_MEM, SRC_REG, SRC_STEP, STORE_IND, STORE_MEM, STORE_NONE, STORE_REG, SYSCALL_ENTER_FRAME
 };
+
+#[serde_as]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct SerializedAccountMeta {
+    /// An account's public key.
+    #[serde_as(as = "DisplayFromStr")]
+    pub pubkey: solana_pubkey::Pubkey,
+    /// True if an `Instruction` requires a `Transaction` signature matching `pubkey`.
+    pub is_signer: bool,
+    /// True if the account data or metadata may be mutated during program execution.
+    pub is_writable: bool,
+}
+
+impl Into<AccountMeta> for SerializedAccountMeta {
+    fn into(self) -> AccountMeta {
+        AccountMeta {
+            pubkey: self.pubkey,
+            is_signer: self.is_signer,
+            is_writable: self.is_writable
+        }
+    }
+}
+
+#[serde_as]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct SerializedInstruction {
+    #[serde_as(as = "DisplayFromStr")]
+    pub program_id: solana_pubkey::Pubkey,
+    pub accounts: Vec<SerializedAccountMeta>,
+    //pub data: String
+    #[serde_as(as = "Hex")]
+    pub data: Vec<u8>,
+}
+
+impl Into<Instruction> for SerializedInstruction {
+    fn into(self) -> Instruction {
+        Instruction {
+            program_id: self.program_id,
+            accounts: self.accounts.into_iter().map(Into::into).collect::<Vec<_>>(),
+            data: self.data.into()
+        }
+    }
+}
+
 
 /// ZisK emulator structure, containing the ZisK rom, the list of ZisK operations, and the
 /// execution context
@@ -1534,25 +1579,30 @@ impl<'a> Emu<'a> {
         use solana_sdk::bpf_loader_upgradeable;
 
         let mut runner = mollusk_svm::Mollusk::default();
+        let _ = InstructionTraceBuilder::prepare_for_tracing(&mut runner);
+
         for (key, acc) in accounts {
             if acc.executable {
                 runner.add_program_with_elf_and_loader(key, acc.data.as_slice(), &bpf_loader_upgradeable::id());
             }
         }
 
-        let instruction = serde_json::from_str::<solana_instruction::Instruction>(
-            str::from_utf8(inputs.as_slice()).expect("broken utf8 in instruction")).expect("instruction decoding failed");
+        let instruction = serde_json::from_str::<SerializedInstruction>(
+            str::from_utf8(inputs.as_slice()).expect("broken utf8 in instruction")).expect("instruction decoding failed").into();
 
         let init_state = Arc::new(TxInput::new_with_defaults(&instruction, accounts).map_err(EmulationError::InstructionError)?);
 
+        println!("executing {instruction:?} with {accounts:?}");
         let full_trace = InstructionTraceBuilder::build(&mut runner, &instruction, accounts)?;
         assert!(full_trace.frames.len() == 1);
+        println!("full_trace len {}", full_trace.frames[0].entries.len());
 
         let final_state = Arc::new(TxInput::new_with_defaults(&instruction, &full_trace.result.resulting_accounts).map_err(EmulationError::InstructionError)?);
 
         // Context, where the state of the execution is stored and modified at every execution step
         self.ctx = EmuContext::new_empty();
         for region in full_trace.frames[0].address_space.regions.as_slice() {
+            //println!("vm_addr={} vm_addr_end={} vm_gap_shift={}, region mem len {}", region.vm_addr, region.vm_addr_end, region.vm_gap_shift, region.len);
             if region.writable.get() {
                 self.ctx.inst_ctx.mem.add_inited_write_section(region.vm_addr, 
                    unsafe {slice::from_raw_parts(region.host_addr.get() as *const u8, region.len as usize)});
@@ -1561,9 +1611,10 @@ impl<'a> Emu<'a> {
                     unsafe {slice::from_raw_parts(region.host_addr.get() as *const u8, region.len as usize)});
             }
         }
+        self.ctx.inst_ctx.mem.add_write_section(SYSCALL_ENTER_FRAME, 13*8);
+        self.ctx.inst_ctx.mem.add_write_section(FRAME_REGS_START, FRAME_REGS_LEN);
 
-        self.ctx.inst_ctx.mem.read_sections.sort_by(|a, b| a.start.cmp(&b.start));
-        self.ctx.inst_ctx.mem.write_sections.sort_by(|a, b| a.start.cmp(&b.start));
+        self.ctx.inst_ctx.mem.pad_init_regions();
 
         // Init pc to the rom entry address
         self.ctx.trace.start_state.pc = ROM_ENTRY;
@@ -1597,12 +1648,16 @@ impl<'a> Emu<'a> {
 
 
             if let Some(sol_pc) = ZiskRom::sol_pc(self.rom, self.ctx.inst_ctx.pc) {
+                //println!("executing sol inst {sol_pc}");
                 let entry = &full_trace.frames[0].entries[sol_inst];
+                //println!("regs before {:?}", entry.regs_before);
+                //println!("zisk regs before {:?}", self.ctx.inst_ctx.regs[4..][..12].to_vec());
                 assert!(sol_pc == entry.pc());
                 for i in 0..entry.regs_before.len()-1 {
                     assert!(entry.regs_before[i] == self.ctx.inst_ctx.regs[reg_for_bpf_reg(i as u8) as usize]);
                 }
                 sol_inst += 1;
+                //println!("sol entry {entry:?}")
             }
 
             self.par_step_my_block(emu_traces.last_mut().unwrap());
@@ -1725,6 +1780,7 @@ impl<'a> Emu<'a> {
     #[inline(always)]
     pub fn par_step_my_block(&mut self, emu_full_trace_vec: &mut EmuTrace) {
         let instruction = self.rom.get_instruction(self.ctx.inst_ctx.pc);
+        //println!("executing pc={} {instruction:?}", self.ctx.inst_ctx.pc);
         // Build the 'a' register value  based on the source specified by the current instruction
         self.source_a_mem_reads_generate(instruction, &mut emu_full_trace_vec.mem_reads);
 
