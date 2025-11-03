@@ -219,8 +219,8 @@ impl DataBusTrait<PayloadType, Box<dyn BusDeviceMetrics>> for StaticDataBus<Payl
             (Some(self.sha256f_counter.0), Some(Box::new(self.sha256f_counter.1))),
             (Some(self.arith_eq_counter.0), Some(Box::new(self.arith_eq_counter.1))),
             (Some(self.arith_eq_384_counter.0), Some(Box::new(self.arith_eq_384_counter.1))),
-            (Some(ACCOUNTS_INIT_ID), None),
-            (Some(ACCOUNTS_RESULT_ID), None)
+            (Some(ACCOUNTS_INIT_ID), Some(Box::new(DummyCounter {}))),
+            (Some(ACCOUNTS_RESULT_ID), Some(Box::new(DummyCounter {})))
         ];
 
         if let Some(mem_counter) = self.mem_counter.1 {

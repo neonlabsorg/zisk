@@ -28,7 +28,7 @@ const ST_X_TO_INI_MASK: u32 = 0xFFFF_FFFF >> (32 - ST_BITS_OFFSET);
 #[derive(Default)]
 pub struct MemCounters {
     pub addr: HashMap<u64, u32>,
-    pub addr_sorted: [Vec<(u64, u32)>; 3],
+    pub addr_sorted: [Vec<(u64, u32)>; 4],
     pub mem_align_counters: MemAlignCounters,
     pub file: Option<File>,
 }
@@ -58,7 +58,7 @@ impl MemCounters {
     pub fn new() -> Self {
         Self {
             addr: HashMap::new(),
-            addr_sorted: [Vec::new(), Vec::new(), Vec::new()],
+            addr_sorted: [Vec::new(), Vec::new(), Vec::new(), Vec::new()],
             file: None,
             mem_align_counters: MemAlignCounters::default(),
         }
