@@ -14,3 +14,4 @@ echo =========================================================rust helpers
 
 echo =========================================================setup
 node --max-old-space-size=131072 --stack-size=1500 ./pil2-proofman-js/src/main_setup.js -a ./pil/zisk.pilout -b build -t ../pil2-proofman/pil2-components/lib/std/pil -u tmp/fixed -r
+(cd ./pil2-proofman; cargo run --bin proofman-cli check-setup --proving-key ../build/provingKey)
