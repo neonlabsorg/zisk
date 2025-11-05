@@ -23,7 +23,7 @@ pub struct AccountsSMBundle<F: PrimeField64> {
 
 pub const ACCOUNTS_INIT_ID: usize = 11;
 pub const ACCOUNTS_RESULT_ID: usize = 12;
-const PERMUTER_ID: usize = 13;
+pub const PERMUTER_ID: usize = 13;
 
 pub enum BuiltInstance<F: PrimeField64> {
     Built(Box<dyn Instance<F>>),
@@ -58,7 +58,7 @@ impl<F: PrimeField64> AccountsSMBundle<F> {
         vec![
             (ACCOUNTS_INIT_ID, self.init_sm.read().unwrap().as_ref().unwrap().build_planner().plan(metrics.remove(&ACCOUNTS_INIT_ID).unwrap())),
             (ACCOUNTS_RESULT_ID, self.result_sm.read().unwrap().as_ref().unwrap().build_planner().plan(metrics.remove(&ACCOUNTS_RESULT_ID).unwrap())),
-            (PERMUTER_ID, self.poseidon_sm.read().unwrap().as_ref().unwrap().build_planner().plan(vec![])),
+            (PERMUTER_ID, self.poseidon_sm.read().unwrap().as_ref().unwrap().build_planner().plan(metrics.remove(&PERMUTER_ID).unwrap())),
         ]
     }
 

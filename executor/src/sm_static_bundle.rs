@@ -11,6 +11,7 @@ use precomp_keccakf::{KeccakfInstance, KeccakfManager};
 use precomp_sha256f::{Sha256fInstance, Sha256fManager};
 use proofman_common::ProofCtx;
 use sm_accounts::AccountsSMBundle;
+use sm_accounts::PERMUTER_ID;
 use sm_arith::{ArithFullInstance, ArithSM};
 use sm_binary::{BinaryAddInstance, BinaryBasicInstance, BinaryExtensionInstance, BinarySM};
 use sm_mem::{
@@ -238,6 +239,7 @@ impl<F: PrimeField64> StaticSMBundle<F> {
             arith_eq_384_counter.expect("ArithEq384 counter not found"),
             init,
             result,
+            Some(PERMUTER_ID),
             Some(0),
         )
     }

@@ -22,7 +22,7 @@ use precomp_arith_eq::ArithEqManager;
 use precomp_arith_eq_384::ArithEq384Manager;
 use precomp_keccakf::KeccakfManager;
 use precomp_sha256f::Sha256fManager;
-use sm_accounts::{init::AccountsInitSM, poseidon::PoseidonPermuter, AccountsSMBundle};
+use sm_accounts::{poseidon::PoseidonPermuter, AccountsSMBundle};
 use sm_arith::ArithSM;
 use sm_binary::BinarySM;
 use sm_mem::{Mem, MemInitValuesSlot};

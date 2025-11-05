@@ -44,6 +44,7 @@ pub struct StaticDataBus<D> {
     pub arith_eq_counter: (usize, ArithEqCounterInputGen),
     pub arith_eq_384_counter: (usize, ArithEq384CounterInputGen),
     pub rom_counter_id: Option<usize>,
+    pub poseidon_counter_id: Option<usize>,
 
     pub accounts_init_counter: AccountsInitCounter,
     pub accounts_result_counter: AccountsResultCounter,
@@ -66,6 +67,7 @@ impl StaticDataBus<PayloadType> {
         arith_eq_384_counter: (usize, ArithEq384CounterInputGen),
         accounts_init_counter: AccountsInitCounter,
         accounts_result_counter: AccountsResultCounter,
+        poseidon_counter_id: Option<usize>,
         rom_counter_id: Option<usize>,
     ) -> Self {
         Self {
@@ -81,6 +83,7 @@ impl StaticDataBus<PayloadType> {
             rom_counter_id,
             accounts_init_counter,
             accounts_result_counter,
+            poseidon_counter_id,
             pending_transfers: VecDeque::new(),
         }
     }
@@ -220,7 +223,8 @@ impl DataBusTrait<PayloadType, Box<dyn BusDeviceMetrics>> for StaticDataBus<Payl
             (Some(self.arith_eq_counter.0), Some(Box::new(self.arith_eq_counter.1))),
             (Some(self.arith_eq_384_counter.0), Some(Box::new(self.arith_eq_384_counter.1))),
             (Some(ACCOUNTS_INIT_ID), Some(Box::new(DummyCounter {}))),
-            (Some(ACCOUNTS_RESULT_ID), Some(Box::new(DummyCounter {})))
+            (Some(ACCOUNTS_RESULT_ID), Some(Box::new(DummyCounter {}))),
+            (self.poseidon_counter_id, Some(Box::new(DummyCounter {})))
         ];
 
         if let Some(mem_counter) = self.mem_counter.1 {
