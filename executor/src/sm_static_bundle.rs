@@ -18,6 +18,9 @@ use sm_mem::{
     MemAlignWriteByteInstance, MemModuleInstance,
 };
 use sm_rom::{RomInstance, RomSM};
+use zisk_pil::ACCOUNTS_INIT_AIR_IDS;
+use zisk_pil::ACCOUNTS_RESULT_AIR_IDS;
+use zisk_pil::POSEIDON_PERMUTER_AIR_IDS;
 use std::collections::HashMap;
 use zisk_common::{BusDeviceMetrics, ChunkId, ComponentBuilder, Instance, InstanceCtx, Plan};
 use zisk_pil::{
@@ -265,6 +268,7 @@ impl<F: PrimeField64> StaticSMBundle<F> {
                 let mut arith_eq_collectors = Vec::new();
                 let mut arith_eq_384_collectors = Vec::new();
                 let mut rom_collectors = Vec::new();
+                let mut dummy_collectors = Vec::new();
                 for global_idx in global_idxs {
                     let secn_instance = secn_instances.get(global_idx).unwrap();
 
@@ -399,6 +403,9 @@ impl<F: PrimeField64> StaticSMBundle<F> {
                                 rom_collectors.push((*global_idx, collector));
                             }
                         }
+                        _air if air_id == ACCOUNTS_INIT_AIR_IDS[0] => dummy_collectors.push(*global_idx),
+                        _air if air_id == ACCOUNTS_RESULT_AIR_IDS[0] => dummy_collectors.push(*global_idx),
+                        _air if air_id == POSEIDON_PERMUTER_AIR_IDS[0] => dummy_collectors.push(*global_idx),
                         _ => {
                             panic!("Unsupported AIR ID: {}", air_id);
                         }
@@ -452,6 +459,7 @@ impl<F: PrimeField64> StaticSMBundle<F> {
                     keccakf_inputs_generator.expect("KeccakF input generator not found"),
                     sha256f_inputs_generator.expect("SHA256F input generator not found"),
                     arith_inputs_generator.expect("Arith input generator not found"),
+                    dummy_collectors,
                 );
 
                 Some(data_bus)

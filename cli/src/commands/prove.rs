@@ -36,7 +36,7 @@ use zstd::stream::write::Encoder;
 #[command(propagate_version = true)]
 #[command(group(
     clap::ArgGroup::new("input_mode")
-        .args(["asm", "emulator"])
+        .args(["emulator"])
         .multiple(false)
         .required(false)
 ))]
@@ -50,11 +50,6 @@ pub struct ZiskProve {
     /// to generate the witness.
     #[clap(short = 'e', long)]
     pub elf: PathBuf,
-
-    /// ASM file path
-    /// Optional, mutually exclusive with `--emulator`
-    #[clap(short = 's', long)]
-    pub asm: Option<PathBuf>,
 
     /// Use prebuilt emulator (mutually exclusive with `--asm`)
     #[clap(short = 'l', long, action = clap::ArgAction::SetTrue)]
@@ -168,33 +163,6 @@ impl ZiskProve {
                     // prevent collision in distributed mode
                     panic!("Failed to create the cache directory: {e:?}");
                 }
-            }
-        }
-
-        let emulator = if cfg!(target_os = "macos") { true } else { self.emulator };
-
-        let mut asm_rom = None;
-        if emulator {
-            self.asm = None;
-        } else if self.asm.is_none() {
-            let stem = self.elf.file_stem().unwrap().to_str().unwrap();
-            let hash = get_elf_data_hash(&self.elf)
-                .map_err(|e| anyhow::anyhow!("Error computing ELF hash: {}", e))?;
-            let new_filename = format!("{stem}-{hash}-mt.bin");
-            let asm_rom_filename = format!("{stem}-{hash}-rh.bin");
-            asm_rom = Some(default_cache_path.join(asm_rom_filename));
-            self.asm = Some(default_cache_path.join(new_filename));
-        }
-
-        if let Some(asm_path) = &self.asm {
-            if !asm_path.exists() {
-                return Err(anyhow::anyhow!("ASM file not found at {:?}", asm_path.display()));
-            }
-        }
-
-        if let Some(asm_rom) = &asm_rom {
-            if !asm_rom.exists() {
-                return Err(anyhow::anyhow!("ASM file not found at {:?}", asm_rom.display()));
             }
         }
 
@@ -397,16 +365,11 @@ impl ZiskProve {
 
         println!("{: >12} {}", "Elf".bright_green().bold(), self.elf.display());
 
-        if self.asm.is_some() {
-            let asm_path = self.asm.as_ref().unwrap().display();
-            println!("{: >12} {}", "ASM runner".bright_green().bold(), asm_path);
-        } else {
-            println!(
-                "{: >12} {}",
-                "Emulator".bright_green().bold(),
-                "Running in emulator mode".bright_yellow()
-            );
-        }
+        println!(
+            "{: >12} {}",
+            "Emulator".bright_green().bold(),
+            "Running in emulator mode".bright_yellow()
+        );
 
         if self.input.is_some() {
             let inputs_path = self.input.as_ref().unwrap().display();

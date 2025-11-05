@@ -24,6 +24,8 @@ use zisk_common::{
 };
 use zisk_core::ZiskOperationType;
 
+use crate::DummyCounter;
+
 /// A bus system facilitating communication between multiple publishers and subscribers.
 ///
 /// The `DataBus` allows devices to register for specific bus IDs or act as global (omni) devices.
@@ -64,6 +66,8 @@ pub struct StaticDataBusCollect<D> {
     /// ROM collector
     pub rom_collector: Vec<(usize, RomCollector)>,
 
+    pub dummy_collectors: Vec<usize>,
+
     /// Queue of pending data transfers to be processed.
     pending_transfers: VecDeque<(BusId, Vec<D>)>,
 
@@ -98,6 +102,7 @@ impl StaticDataBusCollect<PayloadType> {
         keccakf_inputs_generator: KeccakfCounterInputGen,
         sha256f_inputs_generator: Sha256fCounterInputGen,
         arith_inputs_generator: ArithCounterInputGen,
+        dummy_collectors: Vec<usize>
     ) -> Self {
         let mem_collectors_info: Vec<MemCollectorInfo> =
             mem_collector.iter().map(|(_, collector)| collector.get_mem_collector_info()).collect();
@@ -121,6 +126,7 @@ impl StaticDataBusCollect<PayloadType> {
             arith_inputs_generator,
             pending_transfers: VecDeque::with_capacity(64),
             mem_collectors_info,
+            dummy_collectors
         }
     }
 
@@ -350,6 +356,10 @@ impl DataBusTrait<PayloadType, Box<dyn BusDevice<PayloadType>>>
 
         for (id, collector) in self.rom_collector {
             result.push((Some(id), Some(Box::new(collector) as Box<dyn BusDevice<PayloadType>>)));
+        }
+
+        for id in self.dummy_collectors {
+            result.push((Some(id), Some(Box::new(DummyCounter{}) as Box<dyn BusDevice<PayloadType>>)))
         }
 
         result

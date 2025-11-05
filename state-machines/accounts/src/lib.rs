@@ -5,7 +5,7 @@ use poseidon::{PoseidonPermuter, PoseidonSM};
 use result::{AccountsResultCounter, AccountsResultSM};
 use sbpf_parser::mem::TxInput;
 use zisk_common::{BusDeviceMetrics, ChunkId, Plan};
-use zisk_pil::{ACCOUNTS_INIT_AIR_IDS, ACCOUNTS_RESULT_AIR_IDS, ZISK_AIRGROUP_ID};
+use zisk_pil::{ACCOUNTS_INIT_AIR_IDS, ACCOUNTS_RESULT_AIR_IDS, POSEIDON_PERMUTER_AIR_IDS, ZISK_AIRGROUP_ID};
 use std::{collections::HashMap, sync::{Arc, RwLock}};
 
 pub mod init;
@@ -74,6 +74,8 @@ impl<F: PrimeField64> AccountsSMBundle<F> {
             BuiltInstance::Built(self.init_sm.read().unwrap().as_ref().unwrap().build_instance(ictx))
         } else if air_id == ACCOUNTS_RESULT_AIR_IDS[0] {
             BuiltInstance::Built(self.result_sm.read().unwrap().as_ref().unwrap().build_instance(ictx))
+        } else if air_id == POSEIDON_PERMUTER_AIR_IDS[0] {
+            BuiltInstance::Built(self.poseidon_sm.read().unwrap().as_ref().unwrap().build_instance(ictx))
         } else {
             BuiltInstance::NotRecognized(ictx)
         }
