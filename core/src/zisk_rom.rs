@@ -177,7 +177,7 @@ impl ZiskRom {
                 BPF_LSH => if cls == BPF_ALU32_LOAD { "sll_w" } else { "sll" },
                 BPF_RSH => if cls == BPF_ALU32_LOAD { "srl_w" } else { "srl" },
                 // neg not handled like arith
-                BPF_MOD => if cls == BPF_ALU32_LOAD { "rem_w" } else { "rem" },
+                BPF_MOD => if cls == BPF_ALU32_LOAD { "remu_w" } else { "remu" },
                 BPF_XOR => "xor",
                 // mov not handled like arith
                 BPF_ARSH => if cls == BPF_ALU32_LOAD { "sra_w" } else { "sra" },
@@ -889,7 +889,13 @@ impl ZiskRom {
             CALL_IMM | SYSCALL => Self::gen_push_frame(version, pc, pc + TRANSPILE_ALIGN as u64, config,
                 |pc| {
                     let mut builder = ZiskInstBuilder::new(pc);
-                    let pc = call_map.get(&(op.imm as u32));
+                    let key = if version.static_syscalls() {
+                        (op.ptr as i64).saturating_add(op.imm).saturating_add(1) as u32
+                    } else {
+                        op.imm as u32
+                    };
+
+                    let pc = call_map.get(&key);
                     if pc.is_none() {
                         for (key, (name, _)) in LoadEnv::new().unwrap().loader.get_function_registry().iter() {
                             if key == op.imm as u32 {
@@ -1210,9 +1216,8 @@ impl ZiskRom {
 
 
 
-        let end_pc = base_ptr + TRANSPILE_ALIGN as u64;
         // abort syscall
-        call_map.insert(3069975057, end_pc);
+        call_map.insert(3069975057, ROM_EXIT);
 
         let sys_translate_pc_routine = base_ptr + 3 * TRANSPILE_ALIGN as u64;
         let user_translate_pc_routine = base_ptr + 4 * TRANSPILE_ALIGN as u64;
@@ -1307,6 +1312,26 @@ impl ZiskRom {
             vec![
                 {
                     let mut builder = ZiskInstBuilder::new(sys_translate_pc_routine);
+                    builder.src_a("reg", TRANSLATE_REG, false);
+                    builder.src_b("imm", bios.text_vmaddr, false);
+                    builder.op("sub").unwrap();
+                    builder.store("reg", TRANSLATE_REG as i64, false, false);
+                    builder.comment("user translate pc");
+                    builder.j(1, 1);
+                    builder.i
+                },
+                {
+                    let mut builder = ZiskInstBuilder::new(sys_translate_pc_routine + 1);
+                    builder.src_a("reg", TRANSLATE_REG, false);
+                    builder.src_a("imm", ebpf::INSN_SIZE as u64, false);
+                    builder.op("divu").unwrap();
+                    builder.store("reg", TRANSLATE_REG as i64, false, false);
+                    builder.comment("user translate pc");
+                    builder.j(1, 1);
+                    builder.i
+                },
+                {
+                    let mut builder = ZiskInstBuilder::new(sys_translate_pc_routine + 2);
                     builder.src_a("imm", TRANSPILE_ALIGN as u64, false);
                     builder.src_b("reg", TRANSLATE_REG, false);
                     builder.op("mulu").unwrap();
@@ -1316,7 +1341,7 @@ impl ZiskRom {
                     builder.i
                 },
                 {
-                    let mut builder = ZiskInstBuilder::new(sys_translate_pc_routine + 1);
+                    let mut builder = ZiskInstBuilder::new(sys_translate_pc_routine + 3);
                     builder.src_a("imm", sys_pc, false);
                     builder.src_b("reg", TRANSLATE_REG, false);
                     builder.op("add").unwrap();
@@ -1326,7 +1351,7 @@ impl ZiskRom {
                     builder.i
                 },
                 {
-                    let mut builder = ZiskInstBuilder::new(sys_translate_pc_routine + 2);
+                    let mut builder = ZiskInstBuilder::new(sys_translate_pc_routine + 4);
                     builder.src_a("reg", TRANSLATE_REG, false);
                     builder.src_b("reg", TRANSLATE_REG, false);
                     builder.op("copyb").unwrap();
@@ -1339,6 +1364,26 @@ impl ZiskRom {
             vec![
                 {
                     let mut builder = ZiskInstBuilder::new(user_translate_pc_routine);
+                    builder.src_a("reg", TRANSLATE_REG, false);
+                    builder.src_b("imm", program.text_vmaddr, false);
+                    builder.op("sub").unwrap();
+                    builder.store("reg", TRANSLATE_REG as i64, false, false);
+                    builder.comment("user translate pc");
+                    builder.j(1, 1);
+                    builder.i
+                },
+                {
+                    let mut builder = ZiskInstBuilder::new(user_translate_pc_routine + 1);
+                    builder.src_a("reg", TRANSLATE_REG, false);
+                    builder.src_b("imm", ebpf::INSN_SIZE as u64, false);
+                    builder.op("divu").unwrap();
+                    builder.store("reg", TRANSLATE_REG as i64, false, false);
+                    builder.comment("user translate pc");
+                    builder.j(1, 1);
+                    builder.i
+                },
+                {
+                    let mut builder = ZiskInstBuilder::new(user_translate_pc_routine + 2);
                     builder.src_a("imm", TRANSPILE_ALIGN as u64, false);
                     builder.src_b("reg", TRANSLATE_REG, false);
                     builder.op("mulu").unwrap();
@@ -1348,7 +1393,7 @@ impl ZiskRom {
                     builder.i
                 },
                 {
-                    let mut builder = ZiskInstBuilder::new(user_translate_pc_routine + 1);
+                    let mut builder = ZiskInstBuilder::new(user_translate_pc_routine + 3);
                     builder.src_a("imm", ROM_ADDR, false);
                     builder.src_b("reg", TRANSLATE_REG, false);
                     builder.op("add").unwrap();
@@ -1358,7 +1403,7 @@ impl ZiskRom {
                     builder.i
                 },
                 {
-                    let mut builder = ZiskInstBuilder::new(user_translate_pc_routine + 2);
+                    let mut builder = ZiskInstBuilder::new(user_translate_pc_routine + 4);
                     builder.src_a("reg", TRANSLATE_REG, false);
                     builder.src_b("reg", TRANSLATE_REG, false);
                     builder.op("copyb").unwrap();
@@ -1471,6 +1516,7 @@ impl ZiskRom {
     ///// corresponding vector.
     //#[inline(always)]
     pub fn get_instruction(&self, pc: u64) -> &ZiskInst {
+        //println!("zisk pc {pc}");
         // If the address is a program address...
         let end_addr = self.end_insts[0].paddr;
         if {
