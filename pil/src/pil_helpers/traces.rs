@@ -16,7 +16,7 @@ use rayon::prelude::*;
 #[allow(dead_code)]
 type FieldExtension<F> = [F; 3];
 
-pub const PILOUT_HASH: &str = "f017580ca122f9336a5f8b8880d0e8b69367d032a53c61dbf3dd4865b5b699aa";
+pub const PILOUT_HASH: &str = "2db18a3cc8077bd597d8045b9b43cfcbd2770f23fdb70a13ce852a482a280a7b";
 
 //AIRGROUP CONSTANTS
 
@@ -146,11 +146,11 @@ trace!(RomTrace<F> {
 
 trace!(PoseidonPermuterFixed<F> {
  __L1__: F,
-},  0, 2, 2097152 );
+},  0, 2, 262144 );
 
 trace!(PoseidonPermuterTrace<F> {
  sel: F, state: [F; 12], round: F, last_round: F, input: [F; 12], full_round: F,
-},  0, 2, 2097152 );
+},  0, 2, 262144 );
 
 trace!(AccountsInitFixed<F> {
  L1: F, __L1__: F,
@@ -333,11 +333,11 @@ values!(RomDataAirValues<F> {
 });
 
 values!(MemAirValues<F> {
- segment_id: F, is_first_segment: F, is_last_segment: F, previous_segment_value: [F; 2], previous_segment_step: F, previous_segment_addr: F, segment_last_value: [F; 2], segment_last_step: F, segment_last_addr: F, distance_base: [F; 2], distance_end: [F; 2], im_direct: [FieldExtension<F>; 6],
+ segment_id: F, is_first_segment: F, is_last_segment: F, previous_segment_value: [F; 2], previous_segment_step: F, previous_segment_addr: F, segment_last_value: [F; 2], segment_last_step: F, segment_last_addr: F, distance_base: [F; 3], distance_end: [F; 3], im_direct: [FieldExtension<F>; 8],
 });
 
 values!(AccountDataAirValues<F> {
- segment_id: F, is_first_segment: F, is_last_segment: F, previous_segment_value: [F; 2], previous_segment_step: F, previous_segment_addr: F, segment_last_value: [F; 2], segment_last_step: F, segment_last_addr: F, distance_base: [F; 2], distance_end: [F; 2], im_direct: [FieldExtension<F>; 6],
+ segment_id: F, is_first_segment: F, is_last_segment: F, previous_segment_value: [F; 2], previous_segment_step: F, previous_segment_addr: F, segment_last_value: [F; 2], segment_last_step: F, segment_last_addr: F, distance_base: [F; 3], distance_end: [F; 3], im_direct: [FieldExtension<F>; 8],
 });
 
 values!(InputDataAirValues<F> {

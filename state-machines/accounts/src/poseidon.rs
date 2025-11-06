@@ -230,6 +230,7 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
             trace[i] = PoseidonPermuterTraceRow::default();
         }
 
+        println!("poseidon witness computed rows {}/{}", self.sm.input_rows.read().unwrap().len(), trace.num_rows());
         Some(AirInstance::new_from_trace(proofman_common::FromTrace::new(&mut trace)))
     }
 

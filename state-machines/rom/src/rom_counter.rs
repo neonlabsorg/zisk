@@ -2,10 +2,7 @@
 //! sent over the data bus. It collects statistics such as program counter (PC),
 //! executed instruction steps, and the PC of the last executed instruction.
 
-use std::{
-    any::Any,
-    sync::{atomic::AtomicU32, Arc},
-};
+use std::any::Any;
 
 use zisk_common::{CounterStats, Metrics, RomBusData, RomData};
 
@@ -24,9 +21,8 @@ impl RomCounter {
     ///
     /// # Returns
     /// A new `RomCounter` instance.
-    pub fn new(bios_inst_count: Arc<Vec<AtomicU32>>, prog_inst_count: Arc<Vec<AtomicU32>>) -> Self {
-        let counter_stats = CounterStats::new(bios_inst_count, prog_inst_count);
-        Self { counter_stats }
+    pub fn new(counter_stats: CounterStats) -> Self {
+        Self { counter_stats: CounterStats::copy_counters(&counter_stats) }
     }
 }
 

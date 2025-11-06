@@ -3,13 +3,8 @@
 //! bus operations and instruction execution in a fine-grained manner.
 
 use std::{
-    any::Any,
-    fmt::Debug,
-    ops::{Add, AddAssign},
-    sync::{atomic::AtomicU32, Arc},
+    any::Any, collections::HashMap, fmt::Debug, ops::{Add, AddAssign}, sync::{atomic::AtomicU32, Arc}
 };
-
-use zisk_core::{ROM_ADDR, ROM_ENTRY};
 
 /// The `Metrics` trait provides an interface for tracking and managing metrics in a
 /// flexible and extensible manner.
@@ -93,11 +88,7 @@ impl AddAssign<&Counter> for Counter {
 /// tracking counts by program counter (PC) and execution steps.
 #[derive(Debug)]
 pub struct CounterStats {
-    /// Shared biod instruction counter for monitoring ROM operations.
-    pub bios_inst_count: Arc<Vec<AtomicU32>>,
-
-    /// Shared program instruction counter for monitoring ROM operations.
-    pub prog_inst_count: Arc<Vec<AtomicU32>>,
+    pub inst_count: Arc<HashMap<u64, AtomicU32>>,
 
     /// The PC of the last executed instruction.
     pub end_pc: u64,
@@ -107,13 +98,24 @@ pub struct CounterStats {
 }
 
 impl CounterStats {
-    pub fn new(entry_inst_count: Arc<Vec<AtomicU32>>, inst_count: Arc<Vec<AtomicU32>>) -> Self {
+    pub fn new(inst_count: Arc<HashMap<u64, AtomicU32>>) -> Self {
         CounterStats {
-            bios_inst_count: entry_inst_count,
-            prog_inst_count: inst_count,
+            inst_count,
             end_pc: 0,
             steps: 0,
         }
+    }
+
+    pub fn copy_counters(cnt: &Self) -> Self {
+        Self::new(cnt.inst_count.clone())
+    }
+
+    pub fn new_inited(it: impl Iterator<Item = u64>) -> Self {
+        let mut mp = HashMap::<u64, AtomicU32>::new();
+        for addr in it {
+            mp.insert(addr, 0.into());
+        }
+        Self::new(Arc::new(mp))
     }
 
     /// Updates the counter statistics with information about the current instruction execution.
@@ -125,13 +127,7 @@ impl CounterStats {
     /// * `end` - A flag indicating if this is the final instruction in the execution.
     #[inline(always)]
     pub fn update(&mut self, pc: u64, step: u64, num: u32, end: bool) {
-        if pc < ROM_ADDR {
-            let addr = ((pc - ROM_ENTRY) as usize) >> 2;
-            self.bios_inst_count[addr].fetch_add(num, std::sync::atomic::Ordering::Relaxed);
-        } else {
-            let addr = (pc - ROM_ADDR) as usize;
-            self.prog_inst_count[addr].fetch_add(num, std::sync::atomic::Ordering::Relaxed);
-        }
+        self.inst_count[&pc].fetch_add(num, std::sync::atomic::Ordering::Relaxed);
 
         if end {
             self.end_pc = pc;

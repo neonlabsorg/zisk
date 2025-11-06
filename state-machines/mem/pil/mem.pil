@@ -264,12 +264,13 @@ airtemplate Mem(const int N = 2**21, const int id = MEMORY_ID, const int RC = 2,
         // could be greater than 2^24, so we divide this distance in two chunks of 16 bits, to verify 
         // that this distance is "positive"
 
-        airval distance_base[2];
+        airval distance_base[3];
 
-        previous_segment_addr - internal_base_address === distance_base[0] + 0x10000 * distance_base[1];
+        previous_segment_addr - internal_base_address === distance_base[0] + 0x10000 * distance_base[1] + 0x100000000 * distance_base[2];
 
         range_check(expression: distance_base[0], min: 0, max: 0xFFFF);
         range_check(expression: distance_base[1], min: 0, max: 0xFFFF);
+        range_check(expression: distance_base[2], min: 0, max: 0xFF);
     } else {
         range_check(expression: previous_segment_addr - internal_base_address, min: 0, max: 2**24 - 1);
     }
@@ -282,13 +283,14 @@ airtemplate Mem(const int N = 2**21, const int id = MEMORY_ID, const int RC = 2,
         // Distance between the last address and the end address of the memory area could be greater than 2^24, so
         // we divide this distance in two chunks of 16 bits, to verify that this distance is "positive"
 
-        airval distance_end[2];
+        airval distance_end[3];
 
-        internal_end_address - segment_last_addr === distance_end[0] + 0x10000 * distance_end[1];
+        internal_end_address - segment_last_addr === distance_end[0] + 0x10000 * distance_end[1] + 0x100000000 * distance_end[2];
 
         range_check(expression: distance_end[0], min: 0, max: 0xFFFF);
         range_check(expression: distance_end[1], min: 0, max: 0xFFFF);
-        assert(size_mb <= 4096);
+        range_check(expression: distance_end[2], min: 0, max: 0xFF);
+        assert(size_mb <= 4096*4);
     } else {
         range_check(expression: internal_end_address - segment_last_addr, min: 0, max: 2**24 - 1);
         assert(size_mb <= 128);

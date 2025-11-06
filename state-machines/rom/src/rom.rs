@@ -11,10 +11,9 @@
 use std::{
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, AtomicU32},
-        Arc, Mutex,
-    },
-    thread::JoinHandle,
+        atomic::AtomicBool,
+        Arc,
+    }
 };
 
 use crate::{RomInstance, RomPlanner};
@@ -22,11 +21,11 @@ use fields::PrimeField64;
 use itertools::Itertools;
 use proofman_common::{AirInstance, FromTrace};
 use zisk_common::{
-    create_atomic_vec, BusDeviceMetrics, ComponentBuilder, CounterStats, Instance, InstanceCtx,
+    BusDeviceMetrics, ComponentBuilder, CounterStats, Instance, InstanceCtx,
     Planner,
 };
 use zisk_core::{
-    zisk_ops::ZiskOp, ZiskRom, ROM_ADDR, ROM_ADDR_MAX, ROM_ENTRY, ROM_EXIT, SRC_IMM,
+    zisk_ops::ZiskOp, ZiskRom, SRC_IMM,
 };
 use zisk_pil::{MainTrace, RomRomTrace, RomRomTraceRow, RomTrace};
 
@@ -35,11 +34,7 @@ pub struct RomSM {
     /// Zisk Rom
     zisk_rom: Arc<ZiskRom>,
 
-    /// Shared biod instruction counter for monitoring ROM operations.
-    bios_inst_count: Arc<Vec<AtomicU32>>,
-
-    /// Shared program instruction counter for monitoring ROM operations.
-    prog_inst_count: Arc<Vec<AtomicU32>>,
+    pc_counters: CounterStats
 }
 
 impl RomSM {
@@ -51,17 +46,10 @@ impl RomSM {
     /// # Returns
     /// An `Arc`-wrapped instance of `RomSM`.
     pub fn new(zisk_rom: Arc<ZiskRom>) -> Arc<Self> {
-        let (bios_inst_count, prog_inst_count) = {
-            (
-                create_atomic_vec(((ROM_ADDR - ROM_ENTRY) as usize) >> 2), // No atomics, we can divide by 4
-                create_atomic_vec((ROM_ADDR_MAX - ROM_ADDR) as usize), // Cannot be dividede by 4
-            )
-        };
-
+        let pc_counters = CounterStats::new_inited(zisk_rom.pc_iter());
         Arc::new(Self {
             zisk_rom,
-            bios_inst_count: Arc::new(bios_inst_count),
-            prog_inst_count: Arc::new(prog_inst_count),
+            pc_counters
         })
     }
 
@@ -92,55 +80,20 @@ impl RomSM {
 
             // Calculate the multiplicity, i.e. the number of times this pc is used in this
             // execution
-            let mut multiplicity: u64;
-            if inst.paddr < ROM_ADDR {
-                if counter_stats.bios_inst_count.is_empty() {
-                    multiplicity = 1; // If the histogram is empty, we use 1 for all pc's
-                } else {
-                    match calculated.load(std::sync::atomic::Ordering::Relaxed) {
-                        true => {
-                            multiplicity = counter_stats.bios_inst_count
-                                [((inst.paddr - ROM_ENTRY) as usize) >> 2]
-                                .swap(0, std::sync::atomic::Ordering::Relaxed)
-                                as u64;
-                        }
-                        false => {
-                            multiplicity = counter_stats.bios_inst_count
-                                [((inst.paddr - ROM_ENTRY) as usize) >> 2]
-                                .load(std::sync::atomic::Ordering::Relaxed)
-                                as u64;
-                        }
-                    }
-
-                    if multiplicity == 0 {
-                        continue;
-                    }
-                    if inst.paddr == counter_stats.end_pc {
-                        multiplicity += main_trace_len - counter_stats.steps % main_trace_len;
-                    }
-                }
-            } else {
+            let mut multiplicity = 
                 match calculated.load(std::sync::atomic::Ordering::Relaxed) {
-                    true => {
-                        multiplicity = counter_stats.prog_inst_count
-                            [(inst.paddr - ROM_ADDR) as usize]
-                            .swap(0, std::sync::atomic::Ordering::Relaxed)
-                            as u64
-                    }
-                    false => {
-                        multiplicity = counter_stats.prog_inst_count
-                            [(inst.paddr - ROM_ADDR) as usize]
-                            .load(std::sync::atomic::Ordering::Relaxed)
-                            as u64
-                    }
-                }
-                if multiplicity == 0 {
-                    continue;
-                }
-                if inst.paddr == counter_stats.end_pc {
-                    multiplicity += main_trace_len - counter_stats.steps % main_trace_len;
-                }
+                    true => counter_stats.inst_count[&pc].swap(0, std::sync::atomic::Ordering::Relaxed),
+                    false => counter_stats.inst_count[&pc].load(std::sync::atomic::Ordering::Relaxed),
+                } as u64;
+
+            if multiplicity == 0 {
+                continue;
             }
+
+            if inst.paddr == counter_stats.end_pc {
+                multiplicity += main_trace_len - counter_stats.steps % main_trace_len;
+            }
+
             rom_trace[i].multiplicity = F::from_u64(multiplicity);
         }
 
@@ -264,8 +217,7 @@ impl<F: PrimeField64> ComponentBuilder<F> for RomSM {
         Box::new(RomInstance::new(
             self.zisk_rom.clone(),
             ictx,
-            self.bios_inst_count.clone(),
-            self.prog_inst_count.clone(),
+            CounterStats::copy_counters(&self.pc_counters)
         ))
     }
 }

@@ -1650,8 +1650,12 @@ impl<'a> Emu<'a> {
             if let Some(sol_pc) = ZiskRom::sol_pc(self.rom, self.ctx.inst_ctx.pc) {
                 //println!("executing sol inst {sol_pc}");
                 let entry = &full_trace.frames[0].entries[sol_inst];
+                //if sol_inst + 1 < full_trace.frames[0].entries.len() {
+                //    let sol_pc = full_trace.frames[0].entries[sol_inst + 1].pc();
+                //    println!("next sol inst {sol_pc}");
+                //}
                 //println!("regs before {:?}", entry.regs_before);
-                //println!("zisk regs before {:?}", self.ctx.inst_ctx.regs[4..][..12].to_vec());
+                //println!("zisk bpf regs before {:?}", self.ctx.inst_ctx.regs[4..][..12].to_vec());
                 assert!(sol_pc == entry.pc());
                 for i in 0..entry.regs_before.len()-1 {
                     assert!(entry.regs_before[i] == self.ctx.inst_ctx.regs[reg_for_bpf_reg(i as u8) as usize]);
@@ -1780,6 +1784,7 @@ impl<'a> Emu<'a> {
     #[inline(always)]
     pub fn par_step_my_block(&mut self, emu_full_trace_vec: &mut EmuTrace) {
         let instruction = self.rom.get_instruction(self.ctx.inst_ctx.pc);
+        //println!("zisk regs before {:?}", self.ctx.inst_ctx.regs.to_vec());
         //println!("executing pc={} {instruction:?}", self.ctx.inst_ctx.pc);
         // Build the 'a' register value  based on the source specified by the current instruction
         self.source_a_mem_reads_generate(instruction, &mut emu_full_trace_vec.mem_reads);

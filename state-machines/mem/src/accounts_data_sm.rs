@@ -242,23 +242,28 @@ impl<F: PrimeField64> MemModule<F> for AccountDataMemSM<F> {
         air_values.segment_last_value[0] = F::from_u32(last_value as u32);
         air_values.segment_last_value[1] = F::from_u32((last_value >> 32) as u32);
 
-        let distance_base = [distance_base as u16, (distance_base >> 16) as u16];
-        let distance_end = [distance_end as u16, (distance_end >> 16) as u16];
+        let distance_base = [distance_base as u16, (distance_base >> 16) as u16, (distance_base >> 32) as u16];
+        let distance_end = [distance_end as u16, (distance_end >> 16) as u16, (distance_end >> 32) as u16];
 
         air_values.distance_base[0] = F::from_u16(distance_base[0]);
         air_values.distance_base[1] = F::from_u16(distance_base[1]);
+        air_values.distance_base[2] = F::from_u16(distance_base[2]);
 
         air_values.distance_end[0] = F::from_u16(distance_end[0]);
         air_values.distance_end[1] = F::from_u16(distance_end[1]);
+        air_values.distance_end[2] = F::from_u16(distance_end[2]);
 
         // println!("AIR_VALUES[{}]: {:?}", segment_id, air_values);
 
         let range_16bits_id = std.get_range_id(0, 0xFFFF, None);
+        let range_8bits_id = std.get_range_id(0, 0xFF, None);
 
         self.std.range_check(range_16bits_id, distance_base[0] as i64, 1);
         self.std.range_check(range_16bits_id, distance_base[1] as i64, 1);
+        self.std.range_check(range_8bits_id, distance_base[2] as i64, 1);
         self.std.range_check(range_16bits_id, distance_end[0] as i64, 1);
         self.std.range_check(range_16bits_id, distance_end[1] as i64, 1);
+        self.std.range_check(range_8bits_id, distance_end[2] as i64, 1);
 
         #[cfg(feature = "debug_mem")]
         {
