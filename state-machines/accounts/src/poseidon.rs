@@ -230,7 +230,6 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
             trace[i] = PoseidonPermuterTraceRow::default();
         }
 
-        println!("poseidon witness computed rows {}/{}", self.sm.input_rows.read().unwrap().len(), trace.num_rows());
         Some(AirInstance::new_from_trace(proofman_common::FromTrace::new(&mut trace)))
     }
 
@@ -253,7 +252,7 @@ impl zisk_common::Planner for PoseidonPlanner {
             ZISK_AIRGROUP_ID,
             POSEIDON_PERMUTER_AIR_IDS[0],
             None,
-            zisk_common::InstanceType::Table,
+            zisk_common::InstanceType::Instance,
             CheckPoint::Multiple(vec_chunk_ids),
             None,
             1,
