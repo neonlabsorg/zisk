@@ -188,12 +188,16 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
                 //6
                 trace[row].input = input.clone();
                 trace[row].last_round = F::ZERO;
+                trace[row].first_round = F::ZERO;
                 trace[row].round = F::from_usize(j);
                 trace[row].full_round = F::ZERO;
-                trace[row].sel = F::ONE;
                 trace[row].state = state.clone();
 
                 state = self.sm.permuter.round(&state, false);
+
+                if j == 0 {
+                    trace[row].first_round = F::ONE;
+                }
 
                 row += 1;
             }
@@ -201,9 +205,9 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
             for j in 0..self.sm.permuter.partial_rounds {
                 trace[row].input = input.clone();
                 trace[row].last_round = F::ZERO;
+                trace[row].first_round = F::ZERO;
                 trace[row].round = F::from_usize(j + self.sm.permuter.full_rounds);
                 trace[row].full_round = F::ZERO;
-                trace[row].sel = F::ONE;
                 trace[row].state = state.clone();
 
                 state = self.sm.permuter.round(&state, true);
@@ -214,12 +218,12 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
             for j in 0..self.sm.permuter.full_rounds {
                 trace[row].input = input.clone();
                 trace[row].last_round = F::ZERO;
+                trace[row].first_round = F::ZERO;
                 trace[row].round = F::from_usize(j + self.sm.permuter.full_rounds + self.sm.permuter.partial_rounds);
                 trace[row].full_round = F::ONE;
-                trace[row].sel = F::ONE;
                 trace[row].state = state.clone();
 
-                state = self.sm.permuter.round(&state, true);
+                state = self.sm.permuter.round(&state, false);
 
                 row += 1;
             }
@@ -227,7 +231,13 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
         }
 
         for i in row..trace.num_rows() {
-            trace[i] = PoseidonPermuterTraceRow::default();
+            //trace[i] = PoseidonPermuterTraceRow::default();
+            trace[i].input = [F::ZERO; POSEIDON_WIDTH];
+            trace[i].last_round = F::ZERO;
+            trace[i].first_round = F::ONE;
+            trace[i].round = F::ZERO;
+            trace[i].full_round = F::ONE;
+            trace[i].state = [F::ZERO; POSEIDON_WIDTH];
         }
 
         Some(AirInstance::new_from_trace(proofman_common::FromTrace::new(&mut trace)))

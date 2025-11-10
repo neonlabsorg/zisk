@@ -11,17 +11,18 @@ public accounts_result[4];
 
 airtemplate PoseidonPermuter(int N = 2**18, const int bus_id = POSEIDON_PERMUTER, const int partial_rounds = 57, const int full_rounds = 12) {
     const int rounds = partial_rounds + full_rounds * 2;
-    col witness sel;
-    sel * (1 - sel) === 0;
-
     col witness state[POSEIDON_WIDTH];
     col witness round;
 
     col witness last_round;
-    expr first_round = 'last_round;
     last_round * (1 - last_round) === 0;
-    round === sel * ('round + 1) * (1 - last_round);
     last_round * (round + 1 - rounds) === 0;
+
+    col witness first_round;
+    first_round * (1 - first_round) === 0;
+    round * first_round === 0;
+
+    round === ('round + 1) * (1 - first_round);
 
     col witness input[POSEIDON_WIDTH];
     for (int i = 0; i < POSEIDON_WIDTH; ++i) {
@@ -30,8 +31,8 @@ airtemplate PoseidonPermuter(int N = 2**18, const int bus_id = POSEIDON_PERMUTER
 
     col witness full_round;
     expr partial_round = 1 - full_round;
-    full_round * (1 - partial_round) === 0;
-    (full_round - 'partial_round) * (round - full_rounds) * (round - full_rounds - partial_rounds) === 0;
+    full_round * partial_round === 0;
+    (1 - first_round) * (full_round - 'full_round) * (round - full_rounds) * (round - full_rounds - partial_rounds) === 0;
 
     // the first and last are full ones
     last_round * (full_round - 1) === 0;

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 echo =========================================================pilout
 
 cargo run --release --bin keccakf_fixed_gen

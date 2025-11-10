@@ -16,7 +16,7 @@ use rayon::prelude::*;
 #[allow(dead_code)]
 type FieldExtension<F> = [F; 3];
 
-pub const PILOUT_HASH: &str = "2db18a3cc8077bd597d8045b9b43cfcbd2770f23fdb70a13ce852a482a280a7b";
+pub const PILOUT_HASH: &str = "e4e403d88210ee93250837757e46ec6d103aa8d5e0b1f417090a894ff81d51e6";
 
 //AIRGROUP CONSTANTS
 
@@ -149,7 +149,7 @@ trace!(PoseidonPermuterFixed<F> {
 },  0, 2, 262144 );
 
 trace!(PoseidonPermuterTrace<F> {
- sel: F, state: [F; 12], round: F, last_round: F, input: [F; 12], full_round: F,
+ state: [F; 12], round: F, last_round: F, first_round: F, input: [F; 12], full_round: F,
 },  0, 2, 262144 );
 
 trace!(AccountsInitFixed<F> {
