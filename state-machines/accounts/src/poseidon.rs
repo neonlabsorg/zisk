@@ -190,7 +190,7 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
                 trace[row].last_round = F::ZERO;
                 trace[row].first_round = F::ZERO;
                 trace[row].round = F::from_usize(j);
-                trace[row].full_round = F::ZERO;
+                trace[row].full_round = F::ONE;
                 trace[row].state = state.clone();
 
                 state = self.sm.permuter.round(&state, false);
