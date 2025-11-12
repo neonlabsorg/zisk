@@ -804,68 +804,75 @@ impl ZiskRom {
                     masks
                 };
 
+                let mut insts = Vec::new();
                 let mut pc = pc;
-                (0..steps_count).flat_map(|pass| if shifts[pass] > op.imm {
-                    vec![]
-                } else {
-                    vec![
-                        {
-                            let mut builder = ZiskInstBuilder::new(pc);
-                            pc += 1;
-                            builder.src_a("reg", reg_for_bpf_reg(op.dst), false);
-                            builder.src_b("imm", swap_masks[pass].0, false);
-                            builder.op("and").unwrap();
-                            builder.store("reg", SCRATCH_REG as i64, false, false);
-                            builder.j(1, 1);
-                            builder.i
-                        },
-                        {
-                            let mut builder = ZiskInstBuilder::new(pc);
-                            pc += 1;
-                            builder.src_a("reg", reg_for_bpf_reg(op.dst), false);
-                            builder.src_b("imm", swap_masks[pass].1, false);
-                            builder.op("and").unwrap();
-                            builder.store("reg", SCRATCH_REG2 as i64, false, false);
-                            builder.j(1, 1);
-                            builder.i
-                        },
-                        {
-                            let mut builder = ZiskInstBuilder::new(pc);
-                            pc += 1;
-                            builder.src_a("reg", SCRATCH_REG, false);
-                            builder.src_b("imm", shifts[pass] as u64, false);
-                            builder.op("sll").unwrap();
-                            builder.store("reg", SCRATCH_REG as i64, false, false);
-                            builder.j(1, 1);
-                            builder.i
-                        },
-                        {
-                            let mut builder = ZiskInstBuilder::new(pc);
-                            pc += 1;
-                            builder.src_a("reg", SCRATCH_REG2, false);
-                            builder.src_b("imm", shifts[pass] as u64, false);
-                             builder.op("srl").unwrap();
-                            builder.store("reg", SCRATCH_REG2 as i64, false, false);
-                            builder.j(1, 1);
-                            builder.i
-                        },
-                        {
-                            let mut builder = ZiskInstBuilder::new(pc);
-                            builder.src_a("reg", SCRATCH_REG, false);
-                            builder.src_b("reg", SCRATCH_REG2, false);
-                            builder.op("or").unwrap();
-                            builder.store("reg", ireg_for_bpf_reg(op.dst), false, false);
-                            if pass + 1 == steps_count {
-                                let align = TRANSPILE_ALIGN as u64;
-                                let jump = (align - (pc % align)) as i32;
-                                builder.j(jump, jump);
-                            } else {
-                                builder.j(1, 1);
-                            }
-                            builder.i
-                        }
-                    ]
-                }).collect()
+                for pass in 0..steps_count {
+                    if shifts[pass] <= op.imm {
+                        insts.extend_from_slice(
+                            vec![
+                                {
+                                    let mut builder = ZiskInstBuilder::new(pc);
+                                    builder.src_a("reg", reg_for_bpf_reg(op.dst), false);
+                                    builder.src_b("imm", swap_masks[pass].0, false);
+                                    builder.op("and").unwrap();
+                                    builder.store("reg", SCRATCH_REG as i64, false, false);
+                                    builder.j(1, 1);
+                                    builder.i
+                                },
+                                {
+                                    let mut builder = ZiskInstBuilder::new(pc + 1);
+                                    builder.src_a("reg", reg_for_bpf_reg(op.dst), false);
+                                    builder.src_b("imm", swap_masks[pass].1, false);
+                                    builder.op("and").unwrap();
+                                    builder.store("reg", SCRATCH_REG2 as i64, false, false);
+                                    builder.j(1, 1);
+                                    builder.i
+                                },
+                                {
+                                    let mut builder = ZiskInstBuilder::new(pc + 2);
+                                    builder.src_a("reg", SCRATCH_REG, false);
+                                    builder.src_b("imm", shifts[pass] as u64, false);
+                                    builder.op("sll").unwrap();
+                                    builder.store("reg", SCRATCH_REG as i64, false, false);
+                                    builder.j(1, 1);
+                                    builder.i
+                                },
+                                {
+                                    let mut builder = ZiskInstBuilder::new(pc + 3);
+                                    builder.src_a("reg", SCRATCH_REG2, false);
+                                    builder.src_b("imm", shifts[pass] as u64, false);
+                                     builder.op("srl").unwrap();
+                                    builder.store("reg", SCRATCH_REG2 as i64, false, false);
+                                    builder.j(1, 1);
+                                    builder.i
+                                },
+                                {
+                                    let mut builder = ZiskInstBuilder::new(pc + 4);
+                                    builder.src_a("reg", SCRATCH_REG, false);
+                                    builder.src_b("reg", SCRATCH_REG2, false);
+                                    builder.op("or").unwrap();
+                                    builder.store("reg", ireg_for_bpf_reg(op.dst), false, false);
+                                    if pass + 1 == steps_count {
+                                        let align = TRANSPILE_ALIGN as u64;
+                                        let jump = (align - (pc % align)) as i32;
+                                        builder.j(jump, jump);
+                                    } else {
+                                        builder.j(1, 1);
+                                    }
+                                    builder.i
+                                }
+                            ].as_slice());
+                            pc += 5;
+                    }
+                }
+
+                insts.last_mut().map(|x| {
+                    let rem = x.paddr % TRANSPILE_ALIGN as u64;
+                    x.jmp_offset1 = (TRANSPILE_ALIGN as u64 - rem) as i64;
+                    x.jmp_offset2 = x.jmp_offset1;
+                });
+
+                insts
             } else {
                 vec![{
                     let mut builder = ZiskInstBuilder::new(pc);
