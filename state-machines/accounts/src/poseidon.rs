@@ -55,6 +55,37 @@ impl Default for PoseidonPermuter<Goldilocks> {
 }
 
 impl<F: PrimeField64> PoseidonPermuter<F> {
+    fn add_arc(&self, state: &[F; POSEIDON_WIDTH]) -> [F; POSEIDON_WIDTH] {
+        let mut result = state.clone();
+        for i in 0..POSEIDON_WIDTH {
+            result[i] = state[i] + self.arc[i];
+        }
+        result
+    }
+
+    fn subwords(&self, state: &[F; POSEIDON_WIDTH], partial: bool) -> [F; POSEIDON_WIDTH] {
+        let mut result = state.clone();
+        let lim = if partial { 1 } else { POSEIDON_WIDTH };
+        for i in 0..lim {
+            let mut accum = state[i];
+            for _ in 0..POSEIDON_SUBWORDS {
+                accum *= state[i];
+            }
+            result[i] = accum;
+        }
+        result
+    }
+
+    fn mix(&self, state: &[F; POSEIDON_WIDTH]) -> [F; POSEIDON_WIDTH] {
+        let mut mixed = [F::ZERO; POSEIDON_WIDTH];
+        for i in 0..POSEIDON_WIDTH {
+            for j in 0..POSEIDON_WIDTH {
+                mixed[i] += self.mix[i][j] * state[j];
+            }
+        }
+        mixed
+    }
+
     fn round(&self, state: &[F; POSEIDON_WIDTH], partial: bool) -> [F; POSEIDON_WIDTH] {
         let mut before_mix = [F::ZERO; POSEIDON_WIDTH];
 
@@ -65,20 +96,13 @@ impl<F: PrimeField64> PoseidonPermuter<F> {
         let lim = if partial { 1 } else { POSEIDON_WIDTH };
         for i in 0..lim {
             let mut accum = before_mix[i];
-            for _ in 0..POSEIDON_SUBWORDS {
+            for _ in 0..POSEIDON_SUBWORDS-1 {
                 accum *= before_mix[i];
             }
             before_mix[i] = accum;
         }
 
-        let mut mixed = [F::ZERO; POSEIDON_WIDTH];
-        for i in 0..POSEIDON_WIDTH {
-            for j in 0..POSEIDON_WIDTH {
-                mixed[i] += self.mix[i][j] * before_mix[j];
-            }
-        }
-
-        mixed
+        self.mix(&before_mix)
     }
 
     pub fn permute(&self, state: &[F; POSEIDON_WIDTH]) -> [F; POSEIDON_WIDTH] {
@@ -183,7 +207,7 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
 
         let mut row = 0;
         for (_i, input) in self.sm.input_rows.read().unwrap().iter().enumerate() {
-            let mut state = input.clone();
+            let mut state = [F::ZERO; POSEIDON_WIDTH];
             for j in 0..self.sm.permuter.full_rounds {
                 //6
                 trace[row].input = input.clone();
@@ -191,13 +215,18 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
                 trace[row].first_round = F::ZERO;
                 trace[row].round = F::from_usize(j);
                 trace[row].full_round = F::ONE;
-                trace[row].state = state.clone();
+                trace[row].b = self.sm.permuter.add_arc(&state);
+                trace[row].c = self.sm.permuter.subwords(&trace[row].b, false);
+                trace[row].d = self.sm.permuter.mix(&trace[row].c);
 
-                state = self.sm.permuter.round(&state, false);
-
+                assert_eq!(self.sm.permuter.round(&state, false), trace[row].d);
                 if j == 0 {
                     trace[row].first_round = F::ONE;
+                    state = input.clone();
+                } else {
+                    state = trace[row].d.clone();
                 }
+                trace[row].state = state.clone();
 
                 row += 1;
             }
@@ -208,9 +237,13 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
                 trace[row].first_round = F::ZERO;
                 trace[row].round = F::from_usize(j + self.sm.permuter.full_rounds);
                 trace[row].full_round = F::ZERO;
-                trace[row].state = state.clone();
+                trace[row].b = self.sm.permuter.add_arc(&state);
+                trace[row].c = self.sm.permuter.subwords(&trace[row].b, true);
+                trace[row].d = self.sm.permuter.mix(&trace[row].c);
 
                 state = self.sm.permuter.round(&state, true);
+                assert_eq!(state, trace[row].d);
+                trace[row].state = state.clone();
 
                 row += 1;
             }
@@ -221,9 +254,13 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
                 trace[row].first_round = F::ZERO;
                 trace[row].round = F::from_usize(j + self.sm.permuter.full_rounds + self.sm.permuter.partial_rounds);
                 trace[row].full_round = F::ONE;
-                trace[row].state = state.clone();
+                trace[row].b = self.sm.permuter.add_arc(&state);
+                trace[row].c = self.sm.permuter.subwords(&trace[row].b, true);
+                trace[row].d = self.sm.permuter.mix(&trace[row].c);
 
                 state = self.sm.permuter.round(&state, false);
+                assert_eq!(state, trace[row].d);
+                trace[row].state = state.clone();
 
                 row += 1;
             }
@@ -245,6 +282,9 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
             trace[i].round = F::ZERO;
             trace[i].full_round = F::ONE;
             trace[i].state = [F::ZERO; POSEIDON_WIDTH];
+            trace[i].b = self.sm.permuter.add_arc(&trace[i].state);
+            trace[i].c = self.sm.permuter.subwords(&trace[i].b, false);
+            trace[i].d = self.sm.permuter.mix(&trace[i].b);
         }
 
         Some(AirInstance::new_from_trace(proofman_common::FromTrace::new(&mut trace)))
