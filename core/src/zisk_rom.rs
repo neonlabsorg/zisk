@@ -783,7 +783,6 @@ impl ZiskRom {
             } {
                 // swapping bytes
                 // we do it in 3 passes
-                let bytes = 8;
                 let steps_count = 3;
                 let shifts = vec![32, 16, 8];
                 let swap_masks = {
@@ -807,7 +806,7 @@ impl ZiskRom {
                 let mut insts = Vec::new();
                 let mut pc = pc;
                 for pass in 0..steps_count {
-                    if shifts[pass] <= op.imm {
+                    if shifts[pass]*2 <= op.imm {
                         insts.extend_from_slice(
                             vec![
                                 {
@@ -852,13 +851,7 @@ impl ZiskRom {
                                     builder.src_b("reg", SCRATCH_REG2, false);
                                     builder.op("or").unwrap();
                                     builder.store("reg", ireg_for_bpf_reg(op.dst), false, false);
-                                    if pass + 1 == steps_count {
-                                        let align = TRANSPILE_ALIGN as u64;
-                                        let jump = (align - (pc % align)) as i32;
-                                        builder.j(jump, jump);
-                                    } else {
-                                        builder.j(1, 1);
-                                    }
+                                    builder.j(1, 1);
                                     builder.i
                                 }
                             ].as_slice());
