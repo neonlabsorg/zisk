@@ -274,17 +274,20 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
             row as f64 / trace.num_rows() as f64 * 100.0
         );
 
+        if row < trace.num_rows() {
+            trace[row].input = [F::ZERO; POSEIDON_WIDTH];
+            trace[row].last_round = F::ZERO;
+            trace[row].first_round = F::ONE;
+            trace[row].round = F::ZERO;
+            trace[row].full_round = F::ONE;
+            trace[row].state = [F::ZERO; POSEIDON_WIDTH];
+            trace[row].b = self.sm.permuter.add_arc(&trace[row].state);
+            trace[row].c = self.sm.permuter.subwords(&trace[row].b, false);
+            trace[row].d = self.sm.permuter.mix(&trace[row].b);
+        }
+
         for i in row..trace.num_rows() {
-            //trace[i] = PoseidonPermuterTraceRow::default();
-            trace[i].input = [F::ZERO; POSEIDON_WIDTH];
-            trace[i].last_round = F::ZERO;
-            trace[i].first_round = F::ONE;
-            trace[i].round = F::ZERO;
-            trace[i].full_round = F::ONE;
-            trace[i].state = [F::ZERO; POSEIDON_WIDTH];
-            trace[i].b = self.sm.permuter.add_arc(&trace[i].state);
-            trace[i].c = self.sm.permuter.subwords(&trace[i].b, false);
-            trace[i].d = self.sm.permuter.mix(&trace[i].b);
+            trace[i] = trace[row].clone();
         }
 
         Some(AirInstance::new_from_trace(proofman_common::FromTrace::new(&mut trace)))
