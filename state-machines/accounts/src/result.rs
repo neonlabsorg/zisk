@@ -73,11 +73,19 @@ impl<F: PrimeField64> AccountsResultSM<F> {
 
             hash_input = self.poseidon.permute(&hash_input, &[F::from_u64(addr), val[0].into(), val[1].into(), F::ZERO]);
             trace[i].hash_accum = hash_input.clone();
+            trace[i].sel = F::ONE;
 
             row += 1;
         }
+        tracing::info!(
+            "··· Creating Result mem [{} / {} rows filled {:.2}%]",
+            row,
+            trace.num_rows(),
+            row as f64 / trace.num_rows() as f64 * 100.0
+        );
         for i in row..trace.num_rows() {
-            trace[i] = AccountsResultTraceRow::default();
+            trace[i] = trace[row - 1].clone();
+            trace[i].sel = F::ZERO;
         }
 
         Some(AirInstance::new_from_trace(FromTrace::new(&mut trace)))

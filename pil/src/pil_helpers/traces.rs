@@ -16,7 +16,7 @@ use rayon::prelude::*;
 #[allow(dead_code)]
 type FieldExtension<F> = [F; 3];
 
-pub const PILOUT_HASH: &str = "e4e403d88210ee93250837757e46ec6d103aa8d5e0b1f417090a894ff81d51e6";
+pub const PILOUT_HASH: &str = "23641af876b83a3be881b40af246d67842c0e95204e3158c16a37d0d1b45564d";
 
 //AIRGROUP CONSTANTS
 
@@ -146,18 +146,18 @@ trace!(RomTrace<F> {
 
 trace!(PoseidonPermuterFixed<F> {
  __L1__: F,
-},  0, 2, 262144 );
+},  0, 2, 524288 );
 
 trace!(PoseidonPermuterTrace<F> {
  state: [F; 12], round: F, last_round: F, first_round: F, input: [F; 12], full_round: F,
-},  0, 2, 262144 );
+},  0, 2, 524288 );
 
 trace!(AccountsInitFixed<F> {
  L1: F, __L1__: F,
 },  0, 3, 2097152 );
 
 trace!(AccountsInitTrace<F> {
- addr: F, val: [F; 2], multiplicity: F, hash_accum: [F; 12],
+ addr: F, val: [F; 2], multiplicity: F, sel: F, hash_accum: [F; 12],
 },  0, 3, 2097152 );
 
 trace!(AccountsResultFixed<F> {
@@ -165,7 +165,7 @@ trace!(AccountsResultFixed<F> {
 },  0, 4, 2097152 );
 
 trace!(AccountsResultTrace<F> {
- addr: F, val: [F; 2], val_init: [F; 2], val_wr: [F; 2], sel_wr: F, hash_accum: [F; 12],
+ addr: F, val: [F; 2], val_init: [F; 2], val_wr: [F; 2], sel_wr: F, sel: F, hash_accum: [F; 12],
 },  0, 4, 2097152 );
 
 trace!(RomDataFixed<F> {

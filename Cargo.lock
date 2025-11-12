@@ -5091,6 +5091,7 @@ dependencies = [
  "solana-account",
  "solana-pubkey",
  "solana-sdk",
+ "tracing",
  "zisk-common",
  "zisk-core",
  "zisk-pil",

@@ -9,7 +9,7 @@ const int POSEIDON_WIDTH = 12;
 public accounts_init[4];
 public accounts_result[4];
 
-airtemplate PoseidonPermuter(int N = 2**18, const int bus_id = POSEIDON_PERMUTER, const int partial_rounds = 57, const int full_rounds = 12) {
+airtemplate PoseidonPermuter(int N = 2**19, const int bus_id = POSEIDON_PERMUTER, const int partial_rounds = 57, const int full_rounds = 12) {
     const int rounds = partial_rounds + full_rounds * 2;
     col witness state[POSEIDON_WIDTH];
     col witness round;
@@ -95,6 +95,9 @@ airtemplate AccountsInit(int N = 2**21, const int bus_id = ACCOUNTS_INIT_BUS_ID,
 
     col witness multiplicity;
 
+    col witness sel;
+    sel * (1 - sel) === 0;
+
     lookup_proves(bus_id, [addr, ...val], mul: multiplicity);
     permutation_assumes(result_bus_id, [addr, ...val]);
 
@@ -107,7 +110,10 @@ airtemplate AccountsInit(int N = 2**21, const int bus_id = ACCOUNTS_INIT_BUS_ID,
     hash_input[0] += addr;
     hash_input[1] += val[0];
     hash_input[2] += val[1];
-    permutation_assumes(poseidon_id, [...hash_input, ...hash_accum], L1);
+    permutation_assumes(poseidon_id, [...hash_input, ...hash_accum], sel: sel * (1 - L1'));
+    for (int i = 0; i < POSEIDON_WIDTH; ++i) {
+        (1 - sel) * (hash_accum[i] - 'hash_accum[i]) === 0
+    }
     for (int i = 0; i < 4; ++i) {
         L1' * (hash_accum[i] - accounts_init[i]) === 0;
     }
@@ -121,6 +127,9 @@ airtemplate AccountsResult(int N = 2**21, const int bus_id = ACCOUNTS_RESULT_BUS
 
     col witness val_wr[RC];
     col witness sel_wr;
+
+    col witness sel;
+    sel * (1 - sel) === 0;
 
     (1 - sel_wr) * sel_wr === 0;
 
@@ -141,7 +150,10 @@ airtemplate AccountsResult(int N = 2**21, const int bus_id = ACCOUNTS_RESULT_BUS
     hash_input[0] += addr;
     hash_input[1] += val[0];
     hash_input[2] += val[1];
-    permutation_assumes(poseidon_id, [...hash_input, ...hash_accum], L1);
+    permutation_assumes(poseidon_id, [...hash_input, ...hash_accum], sel: sel * (1 - L1'));
+    for (int i = 0; i < POSEIDON_WIDTH; ++i) {
+        (1 - sel) * (hash_accum[i] - 'hash_accum[i]) === 0
+    }
     for (int i = 0; i < 4; ++i) {
         L1' * (hash_accum[i] - accounts_result[i]) === 0;
     }

@@ -19,3 +19,4 @@ zisk-pil = { path = "../../pil" }
 proofman-common.workspace = true
 sm-mem = { path = "../mem" }
 mem-common = { path = "../mem-common" }
+tracing.workspace = true

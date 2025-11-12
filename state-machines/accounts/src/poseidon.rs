@@ -230,6 +230,13 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
             trace[row - 1].last_round = F::ONE;
         }
 
+        tracing::info!(
+            "··· Posedon permuter [{} / {} rows filled {:.2}%]",
+            row,
+            trace.num_rows(),
+            row as f64 / trace.num_rows() as f64 * 100.0
+        );
+
         for i in row..trace.num_rows() {
             //trace[i] = PoseidonPermuterTraceRow::default();
             trace[i].input = [F::ZERO; POSEIDON_WIDTH];
