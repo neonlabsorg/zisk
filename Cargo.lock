@@ -8662,6 +8662,7 @@ dependencies = [
  "solana-sdk",
  "svm-tracer",
  "sysinfo 0.37.2",
+ "tracing",
  "vergen",
  "zisk-common",
  "zisk-core",

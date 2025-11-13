@@ -25,6 +25,7 @@ sm-binary = { workspace = true }
 svm-tracer = { workspace = true }
 mollusk-svm = { workspace = true }
 sbpf-parser.workspace = true
+tracing = { workspace = true }
 
 fields = { workspace=true }
 clap = { workspace = true }

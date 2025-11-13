@@ -1592,10 +1592,10 @@ impl<'a> Emu<'a> {
 
         let init_state = Arc::new(TxInput::new_with_defaults(&instruction, accounts).map_err(EmulationError::InstructionError)?);
 
-        println!("executing {instruction:?} with {accounts:?}");
+        tracing::debug!("executing {instruction:?} with {accounts:?}");
         let full_trace = InstructionTraceBuilder::build(&mut runner, &instruction, accounts)?;
         assert!(full_trace.frames.len() == 1);
-        println!("full_trace len {}", full_trace.frames[0].entries.len());
+        tracing::info!("full solana trace len {}", full_trace.frames[0].entries.len());
 
         let final_state = Arc::new(TxInput::new_with_defaults(&instruction, &full_trace.result.resulting_accounts).map_err(EmulationError::InstructionError)?);
 
@@ -1671,6 +1671,18 @@ impl<'a> Emu<'a> {
             }
         }
 
+        {
+            tracing::debug!("init {init_state:?} final {final_state:?}");
+            let mut addrs = 0;
+            let mut prev_addr = 0;
+            for addr in init_state.iter() {
+                assert!(init_state.read(addr).is_some());
+                assert!(addr > prev_addr);
+                prev_addr = addr;
+                addrs += 1;
+            }
+            tracing::info!("init state size {addrs}");
+        }
         Ok((emu_traces, (init_state, final_state)))
     }
 

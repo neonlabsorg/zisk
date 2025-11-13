@@ -9,7 +9,7 @@ const int POSEIDON_WIDTH = 12;
 public accounts_init[4];
 public accounts_result[4];
 
-airtemplate PoseidonPermuter(int N = 2**19, const int bus_id = POSEIDON_PERMUTER, const int partial_rounds = 57, const int full_rounds = 12) {
+airtemplate PoseidonPermuter(int N = 2**21, const int bus_id = POSEIDON_PERMUTER, const int partial_rounds = 57, const int full_rounds = 12) {
     const int rounds = partial_rounds + full_rounds * 2;
     col witness state[POSEIDON_WIDTH];
     col witness round;

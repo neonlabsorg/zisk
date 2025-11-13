@@ -46,7 +46,7 @@ airgroup Zisk {
     Main(N: 2**22);
     Rom(N: 2**21);
 
-    PoseidonPermuter(N: 2**19);
+    PoseidonPermuter(N: 2**21);
     AccountsInit(N: 2**21);
     AccountsResult(N: 2**21);
 
