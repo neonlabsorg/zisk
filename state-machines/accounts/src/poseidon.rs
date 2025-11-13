@@ -68,7 +68,7 @@ impl<F: PrimeField64> PoseidonPermuter<F> {
         let lim = if partial { 1 } else { POSEIDON_WIDTH };
         for i in 0..lim {
             let mut accum = state[i];
-            for _ in 0..POSEIDON_SUBWORDS {
+            for _ in 0..POSEIDON_SUBWORDS-1 {
                 accum *= state[i];
             }
             result[i] = accum;
@@ -219,11 +219,11 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
                 trace[row].c = self.sm.permuter.subwords(&trace[row].b, false);
                 trace[row].d = self.sm.permuter.mix(&trace[row].c);
 
-                assert_eq!(self.sm.permuter.round(&state, false), trace[row].d);
                 if j == 0 {
                     trace[row].first_round = F::ONE;
                     state = input.clone();
                 } else {
+                    assert_eq!(self.sm.permuter.round(&state, false), trace[row].d);
                     state = trace[row].d.clone();
                 }
                 trace[row].state = state.clone();
@@ -255,7 +255,7 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
                 trace[row].round = F::from_usize(j + self.sm.permuter.full_rounds + self.sm.permuter.partial_rounds);
                 trace[row].full_round = F::ONE;
                 trace[row].b = self.sm.permuter.add_arc(&state);
-                trace[row].c = self.sm.permuter.subwords(&trace[row].b, true);
+                trace[row].c = self.sm.permuter.subwords(&trace[row].b, false);
                 trace[row].d = self.sm.permuter.mix(&trace[row].c);
 
                 state = self.sm.permuter.round(&state, false);
@@ -283,7 +283,7 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
             trace[row].state = [F::ZERO; POSEIDON_WIDTH];
             trace[row].b = self.sm.permuter.add_arc(&trace[row].state);
             trace[row].c = self.sm.permuter.subwords(&trace[row].b, false);
-            trace[row].d = self.sm.permuter.mix(&trace[row].b);
+            trace[row].d = self.sm.permuter.mix(&trace[row].c);
         }
 
         for i in row..trace.num_rows() {
