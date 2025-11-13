@@ -1678,6 +1678,11 @@ impl<'a> Emu<'a> {
             for addr in init_state.iter() {
                 assert!(init_state.read(addr).is_some());
                 assert!(addr > prev_addr);
+                let init_val = init_state.read(addr).unwrap();
+                let final_val = final_state.read(addr).unwrap();
+                if init_val != final_val {
+                    println!("changed val {init_val:?} -> {final_val:?} for {addr}");
+                }
                 prev_addr = addr;
                 addrs += 1;
             }

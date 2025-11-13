@@ -99,7 +99,7 @@ airtemplate AccountsInit(int N = 2**21, const int bus_id = ACCOUNTS_INIT_BUS_ID,
     sel * (1 - sel) === 0;
 
     lookup_proves(bus_id, [addr, ...val], mul: multiplicity);
-    permutation_assumes(result_bus_id, [addr, ...val]);
+    permutation_assumes(result_bus_id, [addr, ...val], sel: sel);
 
     col fixed L1 = [1,0...];
     col witness hash_accum[POSEIDON_WIDTH];
@@ -138,8 +138,8 @@ airtemplate AccountsResult(int N = 2**21, const int bus_id = ACCOUNTS_RESULT_BUS
         (val[i] - val_init[i]) * (1 - sel_wr) === 0;
     }
 
-    permutation_proves(bus_id, [addr, ...val_wr], sel: sel_wr);
-    permutation_proves(bus_id, [addr, ...val_init]);
+    permutation_proves(bus_id, [addr, ...val_wr], sel: sel_wr*sel);
+    permutation_proves(bus_id, [addr, ...val_init], sel: sel);
 
     col fixed L1 = [1,0...];
     col witness hash_accum[POSEIDON_WIDTH];

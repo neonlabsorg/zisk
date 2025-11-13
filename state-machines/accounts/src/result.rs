@@ -1,16 +1,17 @@
 use std::{collections::BTreeMap, sync::{atomic::AtomicBool, Arc, Mutex}};
 
-use mem_common::MemHelpers;
+use mem_common::{MemHelpers, MEM_BYTES};
 use fields::PrimeField64;
 use proofman_common::{AirInstance, FromTrace};
 use sbpf_parser::mem::TxInput;
+use sm_mem::Mem;
 use zisk_common::{BusDevice, BusDeviceMetrics, CheckPoint, ChunkId, ComponentBuilder, Instance, InstanceCtx, InstanceType, MemBusData, MemCollectorInfo, Plan, Planner, MEM_BUS_ID};
 use zisk_pil::{AccountsResultTrace, AccountsResultTraceRow, ACCOUNTS_RESULT_AIR_IDS, ZISK_AIRGROUP_ID};
 
 use crate::poseidon::{PoseidonSM, POSEIDON_BITRATE, POSEIDON_WIDTH};
 
 #[derive(Clone)]
-struct AccountsResultStats(Arc<BTreeMap<u64, Mutex<Option<(u64, [u64; 2])>>>>);
+struct AccountsResultStats(Arc<BTreeMap<u64, Mutex<Option<(u64, [u32; 2])>>>>);
 
 #[derive(Clone)]
 pub struct AccountsResultSM<F: PrimeField64> {
@@ -59,7 +60,7 @@ impl<F: PrimeField64> AccountsResultSM<F> {
         let mut row = 0;
         let mut hash_input = [F::ZERO; POSEIDON_WIDTH];
         for (i, addr) in self.final_state.iter().enumerate() {
-            trace[i].addr = F::from_u64(addr);
+            trace[i].addr = F::from_u64(addr / MEM_BYTES);
             let val = self.final_state.read(addr).unwrap_or(0);
             let val = [F::from_u32(val as u32), F::from_u32((val >> 32) as u32)];
             trace[i].val = val.clone();
@@ -70,9 +71,12 @@ impl<F: PrimeField64> AccountsResultSM<F> {
 
             let vals = self.stats.0.get(&addr).unwrap().lock().unwrap().clone();
             trace[i].sel_wr = F::from_bool(vals.is_some());
-            trace[i].val_wr = vals.map_or([F::ZERO; 2], |x| x.1.map(F::from_u64));
+            trace[i].val_wr = vals.map_or([F::ZERO; 2], |x| x.1.map(F::from_u32));
+            if let Some(vals) = vals {
+                println!("write at witness generation {addr} {val_init:?} -> {vals:?}");
+            }
 
-            hash_input = self.poseidon.permute(&hash_input, &[F::from_u64(addr), val[0].into(), val[1].into(), F::ZERO]);
+            hash_input = self.poseidon.permute(&hash_input, &[F::from_u64(addr / MEM_BYTES), val[0].into(), val[1].into(), F::ZERO]);
             trace[i].hash_accum = hash_input.clone();
             trace[i].sel = F::ONE;
 
@@ -203,17 +207,36 @@ impl BusDevice<u64> for AccountsResultCounter {
         debug_assert!(*bus_id == MEM_BUS_ID);
 
         if MemHelpers::is_write(MemBusData::get_op(data)) {
-            if let Some(vals) = self.stats.0.get(&MemBusData::get_addr(data).into()) {
-                let mut vals = vals.lock().unwrap();
-                *vals = match *vals {
-                    Some((step, memvals)) => if step < MemBusData::get_step(data) { 
-                        Some((MemBusData::get_step(data), MemBusData::get_mem_values(data)))
-                    } else {
-                        Some((step, memvals))
-                    },
-                    None => Some((MemBusData::get_step(data), MemBusData::get_mem_values(data)))
-                };
+            let bytes = MemBusData::get_bytes(data);
+            let addr = MemBusData::get_addr(data);
+            let value = MemBusData::get_value(data);
+            let read_values = MemBusData::get_mem_values(data);
+            let new_step = MemBusData::get_step(data);
+            let update = |addr, val: u64| {
+                if let Some(vals) = self.stats.0.get(addr) {
+                    let new_vals = [val as u32, (val >> 32) as u32];
+                    println!("detected write to {addr} with {val} {new_vals:?}");
+                    let mut vals = vals.lock().unwrap();
+                    *vals = match *vals {
+                        Some((step, memvals)) => if step < new_step { 
+                            Some((new_step, new_vals))
+                        } else {
+                            Some((step, memvals))
+                        },
+                        None => Some((new_step, new_vals))
+                    };
+                }
+            };
+            let (reqaddr1, reqaddr2) = zisk_core::Mem::required_addresses(addr, bytes as u64);
+            let [wr1, wr2] = MemHelpers::get_write_values(addr, bytes, value, read_values);
+            if MemHelpers::is_double(addr, bytes) {
+                update(&reqaddr1, wr1);
+                update(&reqaddr2, wr2);
+            } else {
+                update(&reqaddr1, wr1);
             }
+
+
         }
 
         true
