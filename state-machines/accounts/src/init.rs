@@ -14,7 +14,7 @@ use zisk_common::{
     ComponentBuilder, Instance, InstanceCtx,
 };
 
-use crate::poseidon::{PoseidonSM, POSEIDON_WIDTH};
+use crate::poseidon::{PoseidonSM, POSEIDON_BITRATE, POSEIDON_WIDTH};
 
 #[derive(Clone)]
 pub struct AccountsInitSM<F: PrimeField64> {
@@ -37,7 +37,7 @@ impl<F: PrimeField64> AccountsInitSM<F> {
         }
     }
 
-    pub fn record_hashes(&self) {
+    pub fn record_hashes(&self) -> [F; POSEIDON_BITRATE] {
         let mut hash_input = [F::ZERO; POSEIDON_WIDTH];
         for (_i, addr) in self.initial_state.iter().enumerate() {
             let val = self.initial_state.read(addr).unwrap_or(0);
@@ -47,6 +47,7 @@ impl<F: PrimeField64> AccountsInitSM<F> {
             self.poseidon.record(&hash_input, &input);
             hash_input = self.poseidon.permute(&hash_input, &input);
         }
+        self.poseidon.output(&hash_input)
     }
 
     fn compute_witness(

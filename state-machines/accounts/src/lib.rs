@@ -8,6 +8,8 @@ use zisk_common::{BusDeviceMetrics, ChunkId, Plan};
 use zisk_pil::{ACCOUNTS_INIT_AIR_IDS, ACCOUNTS_RESULT_AIR_IDS, POSEIDON_PERMUTER_AIR_IDS, ZISK_AIRGROUP_ID};
 use std::{collections::HashMap, sync::{Arc, RwLock}};
 
+use crate::poseidon::POSEIDON_BITRATE;
+
 pub mod init;
 pub mod result;
 pub mod poseidon;
@@ -40,18 +42,19 @@ impl<F: PrimeField64> AccountsSMBundle<F> {
         }
     }
 
-    pub fn initialize(&self, init_state: Arc<TxInput>, final_state: Arc<TxInput>) {
+    pub fn initialize(&self, init_state: Arc<TxInput>, final_state: Arc<TxInput>) -> ([F; POSEIDON_BITRATE], [F; POSEIDON_BITRATE]) {
         let poseidon = PoseidonSM::new(self.poseidon_permuter.clone());
         *self.poseidon_sm.write().unwrap() = Some(poseidon.clone());
 
         let accounts_init = AccountsInitSM::new(init_state.clone(), poseidon.clone());
-        accounts_init.record_hashes();
+        let init_hash = accounts_init.record_hashes();
         *self.init_sm.write().unwrap() = Some(accounts_init);
 
         let accounts_result = AccountsResultSM::new(init_state.clone(), final_state.clone(), poseidon.clone());
-        accounts_result.record_hashes();
+        let result_hash = accounts_result.record_hashes();
         *self.result_sm.write().unwrap() = Some(accounts_result);
 
+        (init_hash, result_hash)
     }
 
     pub fn plan(&self, metrics: &mut HashMap<usize, Vec::<(ChunkId, Box<dyn BusDeviceMetrics>)>>) -> Vec<(usize, Vec<Plan>)> {

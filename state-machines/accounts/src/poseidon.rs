@@ -5,7 +5,7 @@ use proofman_common::AirInstance;
 use zisk_common::{BusDeviceMetrics, CheckPoint, ChunkId, ComponentBuilder, Instance, InstanceCtx, InstanceType, Plan};
 use zisk_pil::{PoseidonPermuterTrace, PoseidonPermuterTraceRow, POSEIDON_PERMUTER_AIR_IDS, ZISK_AIRGROUP_ID};
 
-const POSEIDON_BITRATE: usize = 4;
+pub const POSEIDON_BITRATE: usize = 4;
 pub const POSEIDON_WIDTH: usize = 12;
 const POSEIDON_SUBWORDS: usize = 7;
 
@@ -119,6 +119,14 @@ impl<F: PrimeField64> PoseidonPermuter<F> {
         state
     }
 
+    pub fn output(&self, state: &[F; POSEIDON_WIDTH]) -> [F; POSEIDON_BITRATE] {
+        let mut result = [F::ZERO; POSEIDON_BITRATE];
+        for i in 0..POSEIDON_BITRATE {
+            result[i] = state[i];
+        }
+        result
+    }
+
     pub fn mix_to_state(&self, state: &[F; POSEIDON_WIDTH], input: &[F; POSEIDON_BITRATE]) -> [F; POSEIDON_WIDTH] {
         let mut res_state = state.clone();
         for i in 0..POSEIDON_BITRATE {
@@ -145,6 +153,10 @@ impl<F: PrimeField64> PoseidonSM<F> {
 
     pub fn record_first(&self, input: &[F; POSEIDON_BITRATE]) {
         self.record(&[F::ZERO; POSEIDON_WIDTH], input);
+    }
+
+    pub fn output(&self, state: &[F; POSEIDON_WIDTH]) -> [F; POSEIDON_BITRATE] {
+        self.permuter.output(state)
     }
 
     pub fn record(&self, state: &[F; POSEIDON_WIDTH], input: &[F; POSEIDON_BITRATE]) {

@@ -215,18 +215,18 @@ impl<F: PrimeField64> ZiskExecutor<F> {
     ///
     /// # Returns
     /// A vector of `EmuTrace` instances representing minimal traces.
-    fn execute_with_emulator(&self, input_data_path: Option<PathBuf>) -> Vec<EmuTrace> {
-        let min_traces = self.run_emulator(input_data_path);
+    fn execute_with_emulator(&self, input_data_path: Option<PathBuf>) -> (Vec<EmuTrace>, [F; 4], [F; 4]) {
+        let (min_traces, init_hash, result_hash) = self.run_emulator(input_data_path);
 
         // Store execute steps
         let steps = min_traces.iter().map(|t| t.steps).sum::<u64>();
         self.execution_result.lock().unwrap().executed_steps = steps;
 
-        min_traces
+        (min_traces, init_hash, result_hash)
     }
 
 
-    fn run_emulator(&self, input_data_path: Option<PathBuf>) -> Vec<EmuTrace> {
+    fn run_emulator(&self, input_data_path: Option<PathBuf>) -> (Vec<EmuTrace>, [F; 4], [F; 4]) {
         // Call emulate with these options
         let input_data = if let Some(path) = &input_data_path {
             // Read inputs data from the provided inputs path
@@ -252,9 +252,9 @@ impl<F: PrimeField64> ZiskExecutor<F> {
         .expect("Error during emulator execution");
 
         self.mem_init_slot.provide(init_mem.clone());
-        self.acc_sms.initialize(init_mem, fin_mem);
+        let (init_hash, result_hash) = self.acc_sms.initialize(init_mem, fin_mem);
 
-        min_traces
+        (min_traces, init_hash, result_hash)
     }
 
     /// Adds main state machine instances to the proof context and assigns global IDs.
@@ -874,7 +874,7 @@ impl<F: PrimeField64> WitnessComponent<F> for ZiskExecutor<F> {
         // Process the ROM to collect the Minimal Traces
         timer_start_info!(COMPUTE_MINIMAL_TRACE);
 
-        let min_traces = self.execute_with_emulator(input_data_path);
+        let (min_traces, init_hash, result_hash) = self.execute_with_emulator(input_data_path);
 
         timer_start_info!(COUNT);
         let (main_count, mut secn_count) = self.count(&min_traces);
@@ -956,6 +956,10 @@ impl<F: PrimeField64> WitnessComponent<F> for ZiskExecutor<F> {
         for (index, value) in public_values.iter() {
             publics.inputs[*index as usize] = F::from_u32(*value);
         }
+        publics.accounts_init = init_hash;
+        publics.accounts_result = result_hash;
+        tracing::info!("accounts init hash {:?}", init_hash.map(|x| F::to_unique_u64(&x)));
+        tracing::info!("accounts result hash {:?}", init_hash.map(|x| F::to_unique_u64(&x)));
         drop(publics);
 
         // Update internal state with the computed minimal traces and planning.

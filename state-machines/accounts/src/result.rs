@@ -7,7 +7,7 @@ use sbpf_parser::mem::TxInput;
 use zisk_common::{BusDevice, BusDeviceMetrics, CheckPoint, ChunkId, ComponentBuilder, Instance, InstanceCtx, InstanceType, MemBusData, MemCollectorInfo, Plan, Planner, MEM_BUS_ID};
 use zisk_pil::{AccountsResultTrace, AccountsResultTraceRow, ACCOUNTS_RESULT_AIR_IDS, ZISK_AIRGROUP_ID};
 
-use crate::poseidon::{PoseidonSM, POSEIDON_WIDTH};
+use crate::poseidon::{PoseidonSM, POSEIDON_BITRATE, POSEIDON_WIDTH};
 
 #[derive(Clone)]
 struct AccountsResultStats(Arc<BTreeMap<u64, Mutex<Option<(u64, [u64; 2])>>>>);
@@ -36,7 +36,7 @@ impl<F: PrimeField64> AccountsResultSM<F> {
         }
     }
 
-    pub fn record_hashes(&self) {
+    pub fn record_hashes(&self) -> [F; POSEIDON_BITRATE] {
         let mut hash_input = [F::ZERO; POSEIDON_WIDTH];
         for (_i, addr) in self.final_state.iter().enumerate() {
             let val = self.final_state.read(addr).unwrap_or(0);
@@ -46,6 +46,7 @@ impl<F: PrimeField64> AccountsResultSM<F> {
             self.poseidon.record(&hash_input, &input);
             hash_input = self.poseidon.permute(&hash_input, &input);
         }
+        self.poseidon.output(&hash_input)
     }
 
     fn compute_witness(
