@@ -43,7 +43,7 @@ impl<F: PrimeField64> AccountsInitSM<F> {
             let val = self.initial_state.read(addr).unwrap_or(0);
             let val = [F::from_u32(val as u32), F::from_u32((val >> 32) as u32)];
 
-            let input = [F::from_u64(addr), val[0], val[1], F::ZERO];
+            let input = [F::from_u64(addr / MEM_BYTES), val[0], val[1], F::ZERO];
             self.poseidon.record(&hash_input, &input);
             hash_input = self.poseidon.permute(&hash_input, &input);
         }

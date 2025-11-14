@@ -1595,6 +1595,9 @@ impl<'a> Emu<'a> {
         tracing::debug!("executing {instruction:?} with {accounts:?}");
         let full_trace = InstructionTraceBuilder::build(&mut runner, &instruction, accounts)?;
         assert!(full_trace.frames.len() == 1);
+        for log in full_trace.frames[0].logs.as_slice() {
+            tracing::info!("Program log: {log}");
+        }
         tracing::info!("full solana trace len {}", full_trace.frames[0].entries.len());
 
         let final_state = Arc::new(TxInput::new_with_defaults(&instruction, &full_trace.result.resulting_accounts).map_err(EmulationError::InstructionError)?);
@@ -1649,6 +1652,9 @@ impl<'a> Emu<'a> {
 
             if let Some(sol_pc) = ZiskRom::sol_pc(self.rom, self.ctx.inst_ctx.pc) {
                 //println!("executing sol inst {sol_pc}");
+                //if full_trace.frames[0].entries[sol_inst].mem.is_some() {
+                //    println!("sol memory access {:?}", full_trace.frames[0].entries[sol_inst].mem);
+                //}
                 let entry = &full_trace.frames[0].entries[sol_inst];
                 //if sol_inst + 1 < full_trace.frames[0].entries.len() {
                 //    let sol_pc = full_trace.frames[0].entries[sol_inst + 1].pc();
@@ -1675,13 +1681,18 @@ impl<'a> Emu<'a> {
             tracing::debug!("init {init_state:?} final {final_state:?}");
             let mut addrs = 0;
             let mut prev_addr = 0;
+            tracing::debug!("layout {:?}", init_state.debug_data);
             for addr in init_state.iter() {
                 assert!(init_state.read(addr).is_some());
-                assert!(addr > prev_addr);
                 let init_val = init_state.read(addr).unwrap();
+                let init_tracer_val = full_trace.frames[0].address_space.load::<u64>(addr).unwrap();
+                assert!(addr > prev_addr);
                 let final_val = final_state.read(addr).unwrap();
-                if init_val != final_val {
-                    println!("changed val {init_val:?} -> {final_val:?} for {addr}");
+                let from_trace = full_trace.frames[0].final_address_space.load::<u64>(addr).unwrap();
+                assert!(init_val == init_tracer_val, "failed for {addr} {init_val} != {init_tracer_val}");
+                if final_val != from_trace {
+                    assert!(final_state.patch(addr, from_trace, true));
+                    tracing::debug!("patching {addr} with {from_trace}");
                 }
                 prev_addr = addr;
                 addrs += 1;

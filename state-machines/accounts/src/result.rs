@@ -43,7 +43,7 @@ impl<F: PrimeField64> AccountsResultSM<F> {
             let val = self.final_state.read(addr).unwrap_or(0);
             let val = [F::from_u32(val as u32), F::from_u32((val >> 32) as u32)];
 
-            let input = [F::from_u64(addr), val[0].into(), val[1].into(), F::ZERO];
+            let input = [F::from_u64(addr / MEM_BYTES), val[0].into(), val[1].into(), F::ZERO];
             self.poseidon.record(&hash_input, &input);
             hash_input = self.poseidon.permute(&hash_input, &input);
         }
@@ -72,8 +72,11 @@ impl<F: PrimeField64> AccountsResultSM<F> {
             let vals = self.stats.0.get(&addr).unwrap().lock().unwrap().clone();
             trace[i].sel_wr = F::from_bool(vals.is_some());
             trace[i].val_wr = vals.map_or([F::ZERO; 2], |x| x.1.map(F::from_u32));
-            if let Some(vals) = vals {
-                println!("write at witness generation {addr} {val_init:?} -> {vals:?}");
+            if vals.is_some() {
+                //println!("write on row #{i} at witness generation {addr} {val_init:?} -> {:?} but actual val is {val:?}", vals.1);
+                assert!(trace[i].val_wr == val);
+            } else {
+                assert!(val.map(|x| x.to_unique_u64() as u32) == val_init, "unexpected write on row #{i} at witness generation {addr} {val_init:?} -> {:?}", val);
             }
 
             hash_input = self.poseidon.permute(&hash_input, &[F::from_u64(addr / MEM_BYTES), val[0].into(), val[1].into(), F::ZERO]);
@@ -212,10 +215,11 @@ impl BusDevice<u64> for AccountsResultCounter {
             let value = MemBusData::get_value(data);
             let read_values = MemBusData::get_mem_values(data);
             let new_step = MemBusData::get_step(data);
+
             let update = |addr, val: u64| {
                 if let Some(vals) = self.stats.0.get(addr) {
                     let new_vals = [val as u32, (val >> 32) as u32];
-                    println!("detected write to {addr} with {val} {new_vals:?}");
+                    //println!("detected write to {addr} with {val} {new_vals:?}");
                     let mut vals = vals.lock().unwrap();
                     *vals = match *vals {
                         Some((step, memvals)) => if step < new_step { 
@@ -229,11 +233,14 @@ impl BusDevice<u64> for AccountsResultCounter {
             };
             let (reqaddr1, reqaddr2) = zisk_core::Mem::required_addresses(addr, bytes as u64);
             let [wr1, wr2] = MemHelpers::get_write_values(addr, bytes, value, read_values);
+            //println!("collecting {addr}={value} of size {bytes} | {read_values:?} collecting debug required addresses {reqaddr1} {reqaddr2} = {wr1} {wr2}");
             if MemHelpers::is_double(addr, bytes) {
                 update(&reqaddr1, wr1);
                 update(&reqaddr2, wr2);
+                assert!(reqaddr1 != reqaddr2);
             } else {
                 update(&reqaddr1, wr1);
+                assert!(reqaddr1 == reqaddr2);
             }
 
 
