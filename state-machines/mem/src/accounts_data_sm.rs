@@ -150,7 +150,7 @@ impl<F: PrimeField64> MemModule<F> for AccountDataMemSM<F> {
             let (low_val, high_val) = (mem_op.value as u32, (mem_op.value >> 32) as u32);
             trace[i].value = [F::from_u32(low_val), F::from_u32(high_val)];
 
-            let init_vals = init_values.read(mem_op.addr).unwrap_or(0);
+            let init_vals = init_values.read(mem_op.addr * 8).unwrap_or(0);
             let init_vals: [u32; 2] = [init_vals as u32, (init_vals >> 32) as u32];
             trace[i].init_val = init_vals.map(F::from_u32); 
 

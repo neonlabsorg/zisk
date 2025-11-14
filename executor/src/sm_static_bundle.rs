@@ -21,6 +21,7 @@ use sm_mem::{
 use sm_rom::{RomInstance, RomSM};
 use zisk_pil::ACCOUNTS_INIT_AIR_IDS;
 use zisk_pil::ACCOUNTS_RESULT_AIR_IDS;
+use zisk_pil::ACCOUNT_DATA_AIR_IDS;
 use zisk_pil::POSEIDON_PERMUTER_AIR_IDS;
 use std::collections::HashMap;
 use zisk_common::{BusDeviceMetrics, ChunkId, ComponentBuilder, Instance, InstanceCtx, Plan};
@@ -307,7 +308,8 @@ impl<F: PrimeField64> StaticSMBundle<F> {
                         air_id
                             if air_id == MEM_AIR_IDS[0]
                                 || air_id == INPUT_DATA_AIR_IDS[0]
-                                || air_id == ROM_DATA_AIR_IDS[0] =>
+                                || air_id == ROM_DATA_AIR_IDS[0]
+                                || air_id == ACCOUNT_DATA_AIR_IDS[0] =>
                         {
                             let mem_instance = secn_instance
                                 .as_any()

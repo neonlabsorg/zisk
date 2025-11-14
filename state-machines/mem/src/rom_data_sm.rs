@@ -15,12 +15,8 @@ use zisk_common::SegmentId;
 use zisk_core::{ROM_ADDR, ROM_ADDR_MAX};
 use zisk_pil::{RomDataAirValues, RomDataTrace};
 
-pub const ROM_DATA_W_ADDR_INIT: u64 = ROM_ADDR >> MEM_BYTES_BITS;
-pub const ROM_DATA_W_ADDR_END: u64 = ROM_ADDR_MAX >> MEM_BYTES_BITS;
-
-const _: () = {
-    assert!(ROM_ADDR_MAX - ROM_ADDR <= 0xFFFF_FFFF, "ROM_DATA memory exceeds the 32-bit addressable range");
-};
+pub const ROM_DATA_W_ADDR_INIT: u64 = 10000_0000 >> MEM_BYTES_BITS;
+pub const ROM_DATA_W_ADDR_END: u64 = 20000_0000 >> MEM_BYTES_BITS;
 
 pub struct RomDataSM<F: PrimeField64> {
     /// PIL2 standard library

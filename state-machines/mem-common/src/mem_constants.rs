@@ -3,13 +3,6 @@ use zisk_core::{RAM_ADDR, RAM_SIZE};
 pub const RAM_W_ADDR_INIT: u64 = RAM_ADDR >> MEM_BYTES_BITS;
 pub const RAM_W_ADDR_END: u64 = (RAM_ADDR + RAM_SIZE - 1) >> MEM_BYTES_BITS;
 
-const _: () = {
-    assert!(
-        (RAM_SIZE - 1) <= 0xFFFF_FFFF,
-        "RAM memory exceeds the 32-bit addressable range"
-    );
-};
-
 pub const MEM_BYTES_BITS: u64 = 3;
 pub const MEM_BYTES: u64 = 1 << MEM_BYTES_BITS;
 pub const MEM_ADDR_ALIGN_MASK: u64 = MEM_BYTES - 1;

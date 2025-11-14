@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, sync::{atomic::AtomicBool, Arc, Mutex}};
 
-use mem_common::{MemHelpers, MEM_BYTES};
+use mem_common::MemHelpers;
 use fields::PrimeField64;
 use proofman_common::{AirInstance, FromTrace};
 use sbpf_parser::mem::TxInput;
@@ -43,7 +43,7 @@ impl<F: PrimeField64> AccountsResultSM<F> {
             let val = self.final_state.read(addr).unwrap_or(0);
             let val = [F::from_u32(val as u32), F::from_u32((val >> 32) as u32)];
 
-            let input = [F::from_u64(addr / MEM_BYTES), val[0].into(), val[1].into(), F::ZERO];
+            let input = [F::from_u64(addr), val[0].into(), val[1].into(), F::ZERO];
             self.poseidon.record(&hash_input, &input);
             hash_input = self.poseidon.permute(&hash_input, &input);
         }
@@ -60,7 +60,7 @@ impl<F: PrimeField64> AccountsResultSM<F> {
         let mut row = 0;
         let mut hash_input = [F::ZERO; POSEIDON_WIDTH];
         for (i, addr) in self.final_state.iter().enumerate() {
-            trace[i].addr = F::from_u64(addr / MEM_BYTES);
+            trace[i].addr = F::from_u64(addr);
             let val = self.final_state.read(addr).unwrap_or(0);
             let val = [F::from_u32(val as u32), F::from_u32((val >> 32) as u32)];
             trace[i].val = val.clone();
@@ -79,7 +79,7 @@ impl<F: PrimeField64> AccountsResultSM<F> {
                 assert!(val.map(|x| x.to_unique_u64() as u32) == val_init, "unexpected write on row #{i} at witness generation {addr} {val_init:?} -> {:?}", val);
             }
 
-            hash_input = self.poseidon.permute(&hash_input, &[F::from_u64(addr / MEM_BYTES), val[0].into(), val[1].into(), F::ZERO]);
+            hash_input = self.poseidon.permute(&hash_input, &[F::from_u64(addr), val[0].into(), val[1].into(), F::ZERO]);
             trace[i].hash_accum = hash_input.clone();
             trace[i].sel = F::ONE;
 

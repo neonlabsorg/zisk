@@ -74,11 +74,14 @@ impl MemCounters {
             .collect();
         addr_vector.par_sort_by_key(|(key, _)| *key);
 
-        // Divide the original vector into three parts
-        let point = addr_vector.partition_point(|x| x.0 < (0xA000_0000 / 8));
+        // Divide the original vector into -three- four parts
+        let point = addr_vector.partition_point(|x| x.0 < (0x90000_0000 / 8));
+        self.addr_sorted[3] = addr_vector.split_off(point);
+
+        let point = addr_vector.partition_point(|x| x.0 < (0x40000_0000 / 8));
         self.addr_sorted[2] = addr_vector.split_off(point);
 
-        let point = addr_vector.partition_point(|x| x.0 < (0x9000_0000 / 8));
+        let point = addr_vector.partition_point(|x| x.0 < (0x20000_0000 / 8));
         self.addr_sorted[1] = addr_vector.split_off(point);
 
         self.addr_sorted[0] = addr_vector;

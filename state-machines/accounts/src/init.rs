@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, sync::{atomic::{AtomicBool, AtomicU32}, Arc}};
 
 use sbpf_parser::mem::TxInput;
-use mem_common::{MemHelpers, MEM_BYTES};
+use mem_common::MemHelpers;
 
 use zisk_common::{ BusDevice, BusDeviceMetrics, BusId, CheckPoint, ChunkId, InstanceType, MemBusData, MemCollectorInfo, Plan, Planner, MEM_BUS_ID};
 use zisk_pil::{AccountsInitTrace, AccountsInitTraceRow, ACCOUNTS_INIT_AIR_IDS, ZISK_AIRGROUP_ID};
@@ -43,7 +43,7 @@ impl<F: PrimeField64> AccountsInitSM<F> {
             let val = self.initial_state.read(addr).unwrap_or(0);
             let val = [F::from_u32(val as u32), F::from_u32((val >> 32) as u32)];
 
-            let input = [F::from_u64(addr / MEM_BYTES), val[0], val[1], F::ZERO];
+            let input = [F::from_u64(addr), val[0], val[1], F::ZERO];
             self.poseidon.record(&hash_input, &input);
             hash_input = self.poseidon.permute(&hash_input, &input);
         }
@@ -60,13 +60,13 @@ impl<F: PrimeField64> AccountsInitSM<F> {
         let mut row = 0;
         let mut hash_input = [F::ZERO; POSEIDON_WIDTH];
         for (i, addr) in self.initial_state.iter().enumerate() {
-            trace[i].addr = F::from_u64(addr / MEM_BYTES);
+            trace[i].addr = F::from_u64(addr);
             let val = self.initial_state.read(addr).unwrap_or(0);
             let val = [F::from_u32(val as u32), F::from_u32((val >> 32) as u32)];
             trace[i].val = val.clone();
             trace[i].multiplicity = F::from_u32(self.stats.get(&addr).map(|x| x.load(std::sync::atomic::Ordering::Relaxed)).unwrap_or(0));
 
-            hash_input = self.poseidon.permute(&hash_input, &[F::from_u64(addr / MEM_BYTES), val[0], val[1], F::ZERO]);
+            hash_input = self.poseidon.permute(&hash_input, &[F::from_u64(addr), val[0], val[1], F::ZERO]);
             trace[i].hash_accum = hash_input;
             trace[i].sel = F::ONE;
 
