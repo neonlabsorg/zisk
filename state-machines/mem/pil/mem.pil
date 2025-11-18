@@ -415,8 +415,8 @@ airtemplate Mem(const int N = 2**21, const int id = MEMORY_ID, const int RC = 2,
         lookup_assumes(rw_input_init_bus, [addr*bytes, ...init_val]);
         const expr previous_value_0 = SEGMENT_L1 * (previous_segment_value[0] - 'value[0]) + 'value[0];
         const expr previous_value_1 = SEGMENT_L1 * (previous_segment_value[1] - 'value[1]) + 'value[1];
-        permutation_assumes(rw_result_bus, [addr*bytes, previous_value_0, previous_value_1], sel: addr_changes);
-        permutation_assumes(rw_result_bus, [addr*bytes, ...value], sel: SEGMENT_LAST * is_last_segment);
+        permutation_assumes(rw_result_bus, [addr*bytes, previous_value_0, previous_value_1], sel: (addr_changes - SEGMENT_L1 * is_first_segment) * sel);
+        permutation_assumes(rw_result_bus, [addr*bytes, ...value], sel: SEGMENT_LAST * is_last_segment); // we can't detect the last addr, but one from dummy rows is ok
     }
 
     for (int index = 0; index < length(value); index++) {

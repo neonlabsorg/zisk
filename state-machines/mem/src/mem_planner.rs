@@ -305,7 +305,6 @@ impl MemPlanner {
         &self,
         counters: Arc<Vec<(ChunkId, &MemCounters)>>,
     ) -> Vec<Plan> {
-        println!("mem planner counters {:?}", counters);
         let accounts_data_planner = Arc::new(Mutex::new(MemModulePlanner::new(
             MemModulePlannerConfig {
                 airgroup_id: ZISK_AIRGROUP_ID,

@@ -91,11 +91,11 @@ pub const MAX_INPUT_SIZE: u64 = 0x08000000; // 128M,
 /// Free input data memory address = first input address
 pub const FREE_INPUT_ADDR: u64 = INPUT_ADDR;
 
-pub const ACCOUNTS_ADDR: u64 = 0x40000_0000;
+pub const ACCOUNTS_ADDR: u64 = 0x40000_0000 - 0x100;
 pub const ACCOUNTS_SIZE: u64 = 0x10000_0000;
 
 /// First global RW memory address
-pub const RAM_ADDR: u64 = 0x20000_0000;
+pub const RAM_ADDR: u64 = 0x20000_0000 - 0x100;
 /// Size of the global RW memory
 pub const RAM_SIZE: u64 = 0x20000_0000;
 /// First system RW memory address

@@ -1188,7 +1188,7 @@ impl ZiskRom {
         let size = data.len() / 8;
         data.chunks(size_of::<u64>()).map(|x| {
             // as i know, zisk is big-endian
-            u64::from_be_bytes(x.try_into().unwrap()) 
+            u64::from_le_bytes(x.try_into().unwrap()) 
         }).into_iter().enumerate().map(move |(i, val)| (i, i + 1 == size, val))
     }
  
@@ -1207,6 +1207,7 @@ impl ZiskRom {
         let mut system_instructions = Self::ro_section_iter(&program.ro_section_bytes)
             .map(|(i, is_last, val)| {
                 let ptr = program.ro_section_vmaddr + i as u64 * 8;
+                assert!(ptr%8 == 0);
                 let pc = ROM_ENTRY + i as u64;
                 let mut builder = ZiskInstBuilder::new(pc);
                 builder.src_a("imm", ptr, false);
