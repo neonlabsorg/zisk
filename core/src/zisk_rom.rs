@@ -1182,6 +1182,15 @@ impl ZiskRom {
             None
         }
     }
+
+    fn ro_section_iter<'a>(data: &'a [u8]) -> impl 'a + Iterator<Item = (/* number */ usize, /* is_last */ bool, /* val */ u64)> {
+        assert!(data.len() % 8 == 0);
+        let size = data.len() / 8;
+        data.chunks(size_of::<u64>()).map(|x| {
+            // as i know, zisk is big-endian
+            u64::from_be_bytes(x.try_into().unwrap()) 
+        }).into_iter().enumerate().map(move |(i, val)| (i, i + 1 == size, val))
+    }
  
     pub fn new(key: Pubkey, program: ProcessedElf, bios: &ProcessedElf) -> Self {
         assert!(program.config.enable_stack_frame_gaps == bios.config.enable_stack_frame_gaps);
@@ -1191,30 +1200,28 @@ impl ZiskRom {
         assert!(ROM_ADDR % TRANSPILE_ALIGN as u64 == 0);
 
         let base_ptr = {
-            let last_inst = ROM_ENTRY + program.ro_section_bytes.len() as u64;
+            let last_inst = ROM_ENTRY + (program.ro_section_bytes.len() as u64 /8);
             ((last_inst - 1) / TRANSPILE_ALIGN as u64 + 1) * TRANSPILE_ALIGN as u64
         };
 
-        let mut system_instructions = program.ro_section_bytes.iter().enumerate()
-            .map(|(i, b)| {
-                let ptr = program.ro_section_vmaddr + i as u64;
+        let mut system_instructions = Self::ro_section_iter(&program.ro_section_bytes)
+            .map(|(i, is_last, val)| {
+                let ptr = program.ro_section_vmaddr + i as u64 * 8;
                 let pc = ROM_ENTRY + i as u64;
                 let mut builder = ZiskInstBuilder::new(pc);
                 builder.src_a("imm", ptr, false);
-                builder.src_b("imm", *b as u64, false);
+                builder.src_b("imm", val, false);
                 builder.op("copyb").unwrap();
-                builder.ind_width(1);
+                builder.ind_width(8);
                 builder.store("mem", ptr as i64, false, false);
                 builder.comment("rom init");
                 builder.j(1, 1);
-                if i + 1 == program.ro_section_bytes.len() {
+                if is_last {
                     let off = (base_ptr - pc).try_into().unwrap();
                     builder.j(off, off);
                 }
                 builder.i
             }).collect::<Vec<_>>().chunks(TRANSPILE_ALIGN as usize).map(|x| x.to_vec()).collect::<Vec<_>>();
-
-
 
         // abort syscall
         call_map.insert(3069975057, ROM_EXIT);
