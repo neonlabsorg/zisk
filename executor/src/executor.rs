@@ -959,7 +959,7 @@ impl<F: PrimeField64> WitnessComponent<F> for ZiskExecutor<F> {
         publics.accounts_init = init_hash;
         publics.accounts_result = result_hash;
         tracing::info!("accounts init hash {:?}", init_hash.map(|x| F::to_unique_u64(&x)));
-        tracing::info!("accounts result hash {:?}", init_hash.map(|x| F::to_unique_u64(&x)));
+        tracing::info!("accounts result hash {:?}", result_hash.map(|x| F::to_unique_u64(&x)));
         drop(publics);
 
         // Update internal state with the computed minimal traces and planning.

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use fields::{Field, Goldilocks, PrimeField64};
+use fields::{Goldilocks, PrimeField64};
 use proofman_common::AirInstance;
 use zisk_common::{BusDeviceMetrics, CheckPoint, ChunkId, ComponentBuilder, Instance, InstanceCtx, InstanceType, Plan};
 use zisk_pil::{PoseidonPermuterTrace, PoseidonPermuterTraceRow, POSEIDON_PERMUTER_AIR_IDS, ZISK_AIRGROUP_ID};
@@ -107,7 +107,7 @@ impl<F: PrimeField64> PoseidonPermuter<F> {
 
     pub fn permute(&self, state: &[F; POSEIDON_WIDTH]) -> [F; POSEIDON_WIDTH] {
         let mut state = state.clone();
-        for _ in 0..self.full_rounds {
+        for _ in 1..self.full_rounds {
             state = self.round(&state, false);
         }
         for _ in 0..self.partial_rounds {
@@ -134,6 +134,15 @@ impl<F: PrimeField64> PoseidonPermuter<F> {
         }
 
         res_state
+    }
+
+    pub(crate) fn uniqueness_hash<'a>(input: impl Iterator<Item = &'a F>) -> F {
+        let point = F::from_u64(141782340917);
+        let mut result = F::ZERO;
+        for c in input {
+            result = result * point + *c;
+        }
+        result
     }
 }
 
@@ -219,6 +228,7 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
 
         let mut row = 0;
         for (_i, input) in self.sm.input_rows.read().unwrap().iter().enumerate() {
+            let output = self.sm.permuter.permute(input);
             let mut state = [F::ZERO; POSEIDON_WIDTH];
             for j in 0..self.sm.permuter.full_rounds {
                 //6
@@ -276,6 +286,7 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
 
                 row += 1;
             }
+            assert!(trace[row - 1].state == output);
             trace[row - 1].last_round = F::ONE;
         }
 
