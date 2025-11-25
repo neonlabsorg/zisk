@@ -15,8 +15,10 @@ use zisk_common::SegmentId;
 use zisk_core::{ROM_ADDR, ROM_ADDR_MAX};
 use zisk_pil::{RomDataAirValues, RomDataTrace};
 
-pub const ROM_DATA_W_ADDR_INIT: u64 = 0x10000_0000 >> MEM_BYTES_BITS;
-pub const ROM_DATA_W_ADDR_END: u64 = (0x10000_0000 + 0x0010_0000)  >> MEM_BYTES_BITS;
+pub const ROM_DATA_SIZE: u64 = 0x08000000;
+pub const ROM_START: u64 = 0x10000_0000 - 0x100;
+pub const ROM_DATA_W_ADDR_INIT: u64 = ROM_START >> MEM_BYTES_BITS;
+pub const ROM_DATA_W_ADDR_END: u64 = (ROM_START + ROM_DATA_SIZE - 1)  >> MEM_BYTES_BITS;
 
 pub struct RomDataSM<F: PrimeField64> {
     /// PIL2 standard library

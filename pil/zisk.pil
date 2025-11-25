@@ -51,7 +51,7 @@ airgroup Zisk {
     AccountsResult(N: 2**21);
 
     // Standard Operations
-    Mem(N: 2**21, RC: 2, base_address: 0x10000_0000, immutable: 1) alias RomData;
+    Mem(N: 2**21, RC: 2, base_address: 0x10000_0000 - 0x100, size_mb: 128, immutable: 1) alias RomData;
     Mem(N: 2**22, RC: 2, base_address: 0x20000_0000 - 0x100, size_mb: 8192, dual_mem: 1, large_mem: 1);
     Mem(N: 2**21, RC: 2, base_address: 0x40000_0000 - 0x100, is_rw_input: 1, size_mb: 4096, large_mem: 1) alias AccountData;
     Mem(N: 2**21, RC: 2, base_address: 0x90000_0000, free_input_mem: 1, enable_flag: enable_input_data, use_predefined_ranges: 0) alias InputData;
