@@ -64,7 +64,12 @@ impl<F: PrimeField64> AccountsInitSM<F> {
             let val = self.initial_state.read(addr).unwrap_or(0);
             let val = [F::from_u32(val as u32), F::from_u32((val >> 32) as u32)];
             trace[i].val = val.clone();
-            trace[i].multiplicity = F::from_u32(self.stats.get(&addr).map(|x| x.load(std::sync::atomic::Ordering::Relaxed)).unwrap_or(0));
+            if self.stats.get(&addr).map(|x| x.load(std::sync::atomic::Ordering::Relaxed)).unwrap_or(0) > 0 {
+                trace[i].multiplicity = F::ONE;
+            } else {
+                trace[i].multiplicity = F::ZERO;
+            }
+
 
             hash_input = self.poseidon.permute(&hash_input, &[F::from_u64(addr), val[0], val[1], F::ZERO]);
             trace[i].hash_accum = hash_input;
@@ -177,9 +182,15 @@ impl BusDevice<u64> for AccountsInitCounter {
     {
         debug_assert!(*bus_id == MEM_BUS_ID );
         if !MemHelpers::is_write(MemBusData::get_op(data)) {
+            let process = |addr| {
+                if let Some(stats) = self.stats.get(&(addr as u64)) {
+                    stats.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
+            };
             let addr = MemBusData::get_addr(data);
-            if let Some(stats) = self.stats.get(&(addr as u64)) {
-                stats.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            process(addr);
+            if MemHelpers::is_double(addr, MemBusData::get_bytes(data)) {
+                process(addr + 1);
             }
         }
         true

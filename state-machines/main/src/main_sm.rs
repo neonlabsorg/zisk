@@ -338,6 +338,7 @@ impl<F: PrimeField64> MainInstance<F> {
 
         for range in large_range_checks {
             self.std.range_check(range_id, *range as i64, 1);
+            println!("large range check {range}");
         }
         let range_id = self.std.get_range_id(0, MAX_SEGMENT_ID as i64, None);
         self.std.range_check(range_id, segment_id.as_usize() as i64, 1);
