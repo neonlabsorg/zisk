@@ -175,14 +175,14 @@ airtemplate Main(int N = 2**21, int RC = 2, int stack_enabled = 0,
 
         addr0 === a_offset_imm0 + a_use_sp_imm1 * sp;
         addr1 === b_offset_imm0 + b_src_ind * (a[0] + 2**32 * a[1]) +  b_use_sp_imm1 * sp;
-        addr2 === store_offset + store_ind * a[0] + store_use_sp * sp;
+        addr2 === store_offset + store_ind * (a[0] + 2**32 * a[1]) + store_use_sp * sp;
     } else {
         const expr air.addr0;
         col witness air.addr1;
         const expr air.addr2;
         addr0 = a_offset_imm0;
         addr1 === b_offset_imm0 + b_src_ind * (a[0] + 2**32 * a[1]);
-        addr2 = store_offset + store_ind * a[0];
+        addr2 = store_offset + store_ind * (a[0] + 2**32 * a[1]);
     }
 
     //

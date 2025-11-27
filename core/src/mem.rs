@@ -85,7 +85,7 @@ use crate::{M16, M3, M32, M8, REG_FIRST, REG_LAST};
 use core::fmt;
 
 /// Fist input data memory address
-pub const INPUT_ADDR: u64 = 0x90000000;
+pub const INPUT_ADDR: u64 = 0x90000_0000;
 /// Maximum size of the input data
 pub const MAX_INPUT_SIZE: u64 = 0x08000000; // 128M,
 /// Free input data memory address = first input address

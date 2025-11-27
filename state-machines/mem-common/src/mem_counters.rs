@@ -1,4 +1,5 @@
 use rayon::prelude::*;
+use zisk_core::{ACCOUNTS_ADDR, INPUT_ADDR, RAM_ADDR};
 #[cfg(feature = "save_mem_bus_data")]
 use std::{env, io::Write, slice};
 
@@ -75,13 +76,13 @@ impl MemCounters {
         addr_vector.par_sort_by_key(|(key, _)| *key);
 
         // Divide the original vector into -three- four parts
-        let point = addr_vector.partition_point(|x| x.0 < (0x90000_0000 / 8));
+        let point = addr_vector.partition_point(|x| x.0 < (INPUT_ADDR / 8));
         self.addr_sorted[3] = addr_vector.split_off(point);
 
-        let point = addr_vector.partition_point(|x| x.0 < (0x40000_0000 / 8));
+        let point = addr_vector.partition_point(|x| x.0 < (ACCOUNTS_ADDR / 8));
         self.addr_sorted[2] = addr_vector.split_off(point);
 
-        let point = addr_vector.partition_point(|x| x.0 < (0x20000_0000 / 8));
+        let point = addr_vector.partition_point(|x| x.0 < (RAM_ADDR / 8));
         self.addr_sorted[1] = addr_vector.split_off(point);
 
         self.addr_sorted[0] = addr_vector;
