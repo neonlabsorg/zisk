@@ -64,8 +64,8 @@ use serde_with::{serde_as, DisplayFromStr};
 const TRANSLATE_REG: u64 = 2;
 const FRAME_REGS_PTR: u64 = 3;
 const BASE_REG: u64 = 4;
-const STORE_REG: u64 = BASE_REG + 12;
-const SCRATCH_REG: u64 = STORE_REG + 12;
+//const STORE_REG: u64 = BASE_REG + 12;
+const SCRATCH_REG: u64 = BASE_REG + 12;
 const SCRATCH_REG2: u64 = SCRATCH_REG + 1;
 const CU_METER_REG: u64 = SCRATCH_REG2 + 1;
 const TRANSPILE_ALIGN: i32 = 20;
@@ -1505,7 +1505,6 @@ impl ZiskRom {
             builder.src_a("imm", 0, false);
             builder.src_b("imm", 0, false);
             builder.op("flag").unwrap();
-            builder.store("reg", SCRATCH_REG as i64, false, false);
             builder.end();
             builder.i
         }];
