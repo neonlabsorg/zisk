@@ -65,9 +65,9 @@ impl<F: PrimeField64> AccountsInitSM<F> {
             let val = [F::from_u32(val as u32), F::from_u32((val >> 32) as u32)];
             trace[i].val = val.clone();
             if self.stats.get(&addr).map(|x| x.load(std::sync::atomic::Ordering::Relaxed)).unwrap_or(0) > 0 {
-                trace[i].multiplicity = F::ONE;
+                trace[i].read_witness = F::ONE;
             } else {
-                trace[i].multiplicity = F::ZERO;
+                trace[i].read_witness = F::ZERO;
             }
 
 
@@ -88,6 +88,7 @@ impl<F: PrimeField64> AccountsInitSM<F> {
         for i in row..trace.num_rows() {
             trace[i] = trace[row - 1].clone();
             trace[i].sel = F::ZERO;
+            trace[i].read_witness = F::ZERO;
         }
 
         Some(AirInstance::new_from_trace(FromTrace::new(&mut trace)))

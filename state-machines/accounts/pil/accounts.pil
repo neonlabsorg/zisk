@@ -95,12 +95,14 @@ airtemplate AccountsInit(int N = 2**21, const int bus_id = ACCOUNTS_INIT_BUS_ID,
     col witness addr;
     col witness val[RC];
 
-    col witness multiplicity;
+    col witness read_witness;
 
     col witness sel;
     sel * (1 - sel) === 0;
+    read_witness * (1 - read_witness) === 0;
+    (1 - sel) * read_witness === 0;
 
-    lookup_proves(bus_id, [addr, ...val], mul: multiplicity);
+    permutation_proves(bus_id, [addr, ...val], sel: read_witness);
     permutation_assumes(result_bus_id, [addr, ...val], sel: sel);
 
     col fixed L1 = [1,0...];
