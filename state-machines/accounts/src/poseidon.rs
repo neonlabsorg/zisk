@@ -135,15 +135,6 @@ impl<F: PrimeField64> PoseidonPermuter<F> {
 
         res_state
     }
-
-    pub(crate) fn uniqueness_hash<'a>(input: impl Iterator<Item = &'a F>) -> F {
-        let point = F::from_u64(141782340917);
-        let mut result = F::ZERO;
-        for c in input {
-            result = result * point + *c;
-        }
-        result
-    }
 }
 
 #[derive(Clone)]

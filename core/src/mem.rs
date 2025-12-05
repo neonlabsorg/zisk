@@ -732,7 +732,7 @@ impl Mem {
     /// Returns true if the address and width are fully aligned
     #[inline(always)]
     pub fn is_full_aligned(address: u64, width: u64) -> bool {
-        ((address & 0x03) == 0) && (width == 8)
+        ((address & 0x07) == 0) && (width == 8)
     }
 
     /// Returns true if the address and width are single non aligned
@@ -835,6 +835,11 @@ impl Mem {
     pub fn pad_init_regions(&mut self) {
         Self::pad_init_regions_sections_vec(&mut self.read_sections);
         Self::pad_init_regions_sections_vec(&mut self.write_sections);
+    }
+
+    pub fn init_sort_regions(&mut self) {
+        self.read_sections.sort_by(|a, b| a.start.cmp(&b.start));
+        self.write_sections.sort_by(|a, b| a.start.cmp(&b.start));
     }
 
 }

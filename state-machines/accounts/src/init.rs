@@ -4,7 +4,7 @@ use sbpf_parser::mem::TxInput;
 use mem_common::MemHelpers;
 
 use zisk_common::{ BusDevice, BusDeviceMetrics, BusId, CheckPoint, ChunkId, InstanceType, MemBusData, MemCollectorInfo, Plan, Planner, MEM_BUS_ID};
-use zisk_pil::{AccountsInitTrace, AccountsInitTraceRow, ACCOUNTS_INIT_AIR_IDS, ZISK_AIRGROUP_ID};
+use zisk_pil::{AccountsInitTrace, ACCOUNTS_INIT_AIR_IDS, ZISK_AIRGROUP_ID};
 
 use proofman_common::{AirInstance, FromTrace};
 
@@ -182,12 +182,22 @@ impl BusDevice<u64> for AccountsInitCounter {
         ) -> bool
     {
         debug_assert!(*bus_id == MEM_BUS_ID );
-        if !MemHelpers::is_write(MemBusData::get_op(data)) {
-            let process = |addr| {
-                if let Some(stats) = self.stats.get(&(addr as u64)) {
-                    stats.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                }
-            };
+        let process = |addr| {
+            if let Some(stats) = self.stats.get(&(addr as u64)) {
+                stats.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+        };
+
+        if MemHelpers::is_write(MemBusData::get_op(data)) {
+            let addr = MemBusData::get_addr(data);
+            let shift = (addr & 7) as u8;
+            if shift + MemBusData::get_bytes(data) > 8 {
+                process(addr - shift as u64);
+                process(addr - shift as u64 + 8);
+            } else {
+                process(addr - shift as u64);
+            }
+        } else {
             let addr = MemBusData::get_addr(data);
             process(addr);
             if MemHelpers::is_double(addr, MemBusData::get_bytes(data)) {
