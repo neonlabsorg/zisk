@@ -1,0 +1,6 @@
+[submodule "pil2-proofman"]
+	path = pil2-proofman
+	url = https://github.com/ssmike/pil2-proofman
+[submodule "pil2-proofman-js"]
+	path = pil2-proofman-js
+	url = https://github.com/ssmike/pil2-proofman-js
