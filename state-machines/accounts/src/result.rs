@@ -1,12 +1,11 @@
-use std::{collections::BTreeMap, sync::{atomic::AtomicBool, Arc, Mutex}};
+use std::{collections::BTreeMap, sync::{Arc, Mutex}};
 
 use mem_common::MemHelpers;
 use fields::PrimeField64;
 use proofman_common::{AirInstance, FromTrace};
 use sbpf_parser::mem::TxInput;
-use sm_mem::Mem;
 use zisk_common::{BusDevice, BusDeviceMetrics, CheckPoint, ChunkId, ComponentBuilder, Instance, InstanceCtx, InstanceType, MemBusData, MemCollectorInfo, Plan, Planner, MEM_BUS_ID};
-use zisk_pil::{AccountsResultTrace, AccountsResultTraceRow, ACCOUNTS_RESULT_AIR_IDS, ZISK_AIRGROUP_ID};
+use zisk_pil::{AccountsResultTrace, ACCOUNTS_RESULT_AIR_IDS, ZISK_AIRGROUP_ID};
 
 use crate::poseidon::{PoseidonSM, POSEIDON_BITRATE, POSEIDON_WIDTH};
 

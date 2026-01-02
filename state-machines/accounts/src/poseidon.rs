@@ -3,7 +3,7 @@ use std::sync::Arc;
 use fields::{Goldilocks, PrimeField64};
 use proofman_common::AirInstance;
 use zisk_common::{BusDeviceMetrics, CheckPoint, ChunkId, ComponentBuilder, Instance, InstanceCtx, InstanceType, Plan};
-use zisk_pil::{PoseidonPermuterTrace, PoseidonPermuterTraceRow, POSEIDON_PERMUTER_AIR_IDS, ZISK_AIRGROUP_ID};
+use zisk_pil::{PoseidonPermuterTrace, POSEIDON_PERMUTER_AIR_IDS, ZISK_AIRGROUP_ID};
 
 pub const POSEIDON_BITRATE: usize = 4;
 pub const POSEIDON_WIDTH: usize = 12;

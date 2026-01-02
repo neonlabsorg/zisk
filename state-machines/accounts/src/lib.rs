@@ -1,4 +1,4 @@
-use fields::{Goldilocks, PrimeField64};
+use fields::PrimeField64;
 use zisk_common::{ComponentBuilder, Instance, InstanceCtx};
 use init::{AccountsInitCounter, AccountsInitSM};
 use poseidon::{PoseidonPermuter, PoseidonSM};
