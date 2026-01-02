@@ -421,7 +421,7 @@ airtemplate Mem(const int N = 2**21, const int id = MEMORY_ID, const int RC = 2,
 
         // constraints ensure that filler value can be used to ensure result value
         (1 - sel) * (value[0] - previous_value_0) === 0;
-        (1 - sel) * (value[0] - previous_value_1) === 0;
+        (1 - sel) * (value[1] - previous_value_1) === 0;
         (1 - sel) * addr_changes === 0;
         permutation_assumes(rw_result_bus, [addr*bytes, ...value], sel: is_last_segment * SEGMENT_LAST);
     }
