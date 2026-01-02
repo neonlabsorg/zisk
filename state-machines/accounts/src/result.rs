@@ -101,7 +101,8 @@ impl<F: PrimeField64> AccountsResultSM<F> {
 
     pub fn build_counter(&self) -> AccountsResultCounter {
         AccountsResultCounter {
-            stats: self.stats.clone()
+            stats: self.stats.clone(),
+            mem: self.final_state.clone()
         }
     }
 }
@@ -179,7 +180,7 @@ impl<F: PrimeField64> Instance<F> for AccountsResultInstance<F> {
             &self,
             _chunk_id: ChunkId,
         ) -> Option<Box<dyn BusDevice<zisk_common::PayloadType>>> {
-        Some(Box::new(AccountsResultCounter{ stats: self.sm.stats.clone() }))
+        Some(Box::new(AccountsResultCounter{ stats: self.sm.stats.clone(), mem: self.sm.final_state.clone() }))
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -188,7 +189,8 @@ impl<F: PrimeField64> Instance<F> for AccountsResultInstance<F> {
 }
 
 pub struct AccountsResultCounter {
-    stats: AccountsResultStats
+    stats: AccountsResultStats,
+    mem: Arc<TxInput>
 }
 
 impl BusDevice<u64> for AccountsResultCounter {
@@ -209,41 +211,54 @@ impl BusDevice<u64> for AccountsResultCounter {
         ) -> bool {
         debug_assert!(*bus_id == MEM_BUS_ID);
 
-        if MemHelpers::is_write(MemBusData::get_op(data)) {
-            let bytes = MemBusData::get_bytes(data);
-            let addr = MemBusData::get_addr(data);
-            let value = MemBusData::get_value(data);
-            let read_values = MemBusData::get_mem_values(data);
-            let new_step = MemBusData::get_step(data);
+        let bytes = MemBusData::get_bytes(data);
+        let addr = MemBusData::get_addr(data);
+        let value = MemBusData::get_value(data);
+        let read_values = MemBusData::get_mem_values(data);
+        let new_step = MemBusData::get_step(data);
+        let update = |addr: u64, val: Option<u64>| {
+            if let Some(vals) = self.stats.0.get(&addr) {
+                let val = match val {
+                    Some(val) => val,
+                    None => self.mem.read(addr).unwrap() // should be present here because txinputs are
+                                                         // passed from the same executor
+                };
 
-            let update = |addr, val: u64| {
-                if let Some(vals) = self.stats.0.get(addr) {
-                    let new_vals = [val as u32, (val >> 32) as u32];
-                    //println!("detected write to {addr} with {val} {new_vals:?}");
-                    let mut vals = vals.lock().unwrap();
-                    *vals = match *vals {
-                        Some((step, memvals)) => if step < new_step { 
-                            Some((new_step, new_vals))
-                        } else {
-                            Some((step, memvals))
-                        },
-                        None => Some((new_step, new_vals))
-                    };
-                }
-            };
+                let new_vals = [val as u32, (val >> 32) as u32];
+                //println!("detected write to {addr} with {val} {new_vals:?}");
+                let mut vals = vals.lock().unwrap();
+                *vals = match *vals {
+                    Some((step, memvals)) => if step < new_step { 
+                        Some((new_step, new_vals))
+                    } else {
+                        Some((step, memvals))
+                    },
+                    None => Some((new_step, new_vals))
+                };
+            }
+        };
+
+        if MemHelpers::is_write(MemBusData::get_op(data)) {
             let (reqaddr1, reqaddr2) = zisk_core::Mem::required_addresses(addr, bytes as u64);
             let [wr1, wr2] = MemHelpers::get_write_values(addr, bytes, value, read_values);
             //println!("collecting {addr}={value} of size {bytes} | {read_values:?} collecting debug required addresses {reqaddr1} {reqaddr2} = {wr1} {wr2}");
             if MemHelpers::is_double(addr, bytes) {
-                update(&reqaddr1, wr1);
-                update(&reqaddr2, wr2);
+                update(reqaddr1, Some(wr1));
+                update(reqaddr2, Some(wr2));
                 assert!(reqaddr1 != reqaddr2);
             } else {
-                update(&reqaddr1, wr1);
+                update(reqaddr1, Some(wr1));
                 assert!(reqaddr1 == reqaddr2);
             }
-
-
+        } else {
+            let addr = MemBusData::get_addr(data);
+            let shift = (addr & 7) as u8;
+            if shift + bytes > 8 {
+                update(addr - shift as u64, None);
+                update(addr - shift as u64 + 8, None);
+            } else {
+                update(addr - shift as u64, None);
+            }
         }
 
         true

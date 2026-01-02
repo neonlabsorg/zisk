@@ -413,10 +413,17 @@ airtemplate Mem(const int N = 2**21, const int id = MEMORY_ID, const int RC = 2,
     if (is_rw_input) {
         col witness air.init_val[RC];
         permutation_assumes(rw_input_init_bus, [addr*bytes, ...init_val], sel: sel * addr_changes);
+
         const expr previous_value_0 = SEGMENT_L1 * (previous_segment_value[0] - 'value[0]) + 'value[0];
         const expr previous_value_1 = SEGMENT_L1 * (previous_segment_value[1] - 'value[1]) + 'value[1];
-        permutation_assumes(rw_result_bus, [addr*bytes, previous_value_0, previous_value_1], sel: addr_changes * (1 - SEGMENT_L1 * is_first_segment) * sel);
-        permutation_assumes(rw_result_bus, [addr*bytes, ...value], sel: SEGMENT_LAST * is_last_segment); // we can't detect the last addr, but one from dummy rows is ok
+
+        permutation_assumes(rw_result_bus, [previous_addr*bytes, previous_value_0, previous_value_1], sel: addr_changes * (1 - SEGMENT_L1 * is_first_segment));
+
+        // constraints ensure that filler value can be used to ensure result value
+        (1 - sel) * (value[0] - previous_value_0) === 0;
+        (1 - sel) * (value[0] - previous_value_1) === 0;
+        (1 - sel) * addr_changes === 0;
+        permutation_assumes(rw_result_bus, [addr*bytes, ...value], sel: is_last_segment * SEGMENT_LAST);
     }
 
     for (int index = 0; index < length(value); index++) {

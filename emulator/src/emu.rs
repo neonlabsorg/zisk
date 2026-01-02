@@ -796,6 +796,7 @@ impl<'a> Emu<'a> {
                             8,
                             [raw_data, 0],
                         );
+
                         data_bus.write_to_bus(MEM_BUS_ID, &payload);
                     } else {
                         assert!(*mem_reads_index < mem_reads.len());
@@ -1617,7 +1618,8 @@ impl<'a> Emu<'a> {
         self.ctx.inst_ctx.mem.add_write_section(SYSCALL_ENTER_FRAME, 13*8);
         self.ctx.inst_ctx.mem.add_write_section(FRAME_REGS_START, FRAME_REGS_LEN);
 
-        self.ctx.inst_ctx.mem.pad_init_regions();
+//        self.ctx.inst_ctx.mem.pad_init_regions();
+        self.ctx.inst_ctx.mem.init_sort_regions();
 
         // Init pc to the rom entry address
         self.ctx.trace.start_state.pc = ROM_ENTRY;
@@ -1677,6 +1679,7 @@ impl<'a> Emu<'a> {
             }
         }
 
+        tracing::trace!("finish step {} pc {}", self.ctx.inst_ctx.step, self.ctx.inst_ctx.pc);
         {
             tracing::debug!("init {init_state:?} final {final_state:?}");
             let mut addrs = 0;
