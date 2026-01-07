@@ -1,7 +1,7 @@
 use rayon::{prelude::*, ThreadPoolBuilder};
 use std::sync::Arc;
 
-use crate::MemCounters;
+use mem_common::MemCounters;
 use zisk_common::ChunkId;
 
 pub struct MemCountersCursor {
@@ -47,10 +47,10 @@ impl MemCountersCursor {
     pub fn is_empty(&self) -> bool {
         self.counters_count == 0
     }
-    pub fn get_next(&mut self) -> (ChunkId, u32, u32) {
+    pub fn get_next(&mut self) -> (ChunkId, u64, u32) {
         let cursor = &self.sorted_boxes[self.cursor_index];
         self.cursor_index += 1;
-        (cursor.chunk, cursor.addr as u32, cursor.count)
+        (cursor.chunk, cursor.addr, cursor.count)
     }
 
     fn prepare(
@@ -62,7 +62,6 @@ impl MemCountersCursor {
             counters
                 .par_iter()
                 .map(|counter| {
-                    // println!("SORT chunk {}", counter.0);
                     let addr_count = counter.1.addr_sorted[addr_index].len();
                     let mut counter_boxes: Vec<SortedBox> = Vec::with_capacity(addr_count);
                     for i_addr in 0..addr_count {

@@ -1,9 +1,18 @@
-use std::mem;
+use core::str;
+use std::sync::Arc;
+use std::{mem, slice};
+
+use mem_common::MemHelpers;
+use sbpf_parser::mem::TxInput;
+use solana_pubkey::Pubkey;
+use svm_tracer::error::EmulationError;
+use svm_tracer::InstructionTraceBuilder;
+use solana_instruction::{AccountMeta, Instruction};
+use serde_with::{serde_as, DisplayFromStr, hex::Hex};
+use serde::{Deserialize, Serialize};
 
 use crate::{EmuContext, EmuFullTraceStep, EmuOptions, EmuRegTrace, ParEmuOptions};
 use fields::PrimeField64;
-use riscv::RiscVRegisters;
-use sm_mem::MemHelpers;
 use zisk_common::{
     OperationBusData, RomBusData, MAX_OPERATION_DATA_SIZE, MEM_BUS_ID, OPERATION_BUS_ID, ROM_BUS_ID,
 };
@@ -13,10 +22,52 @@ use data_bus::DataBusTrait;
 use zisk_common::{EmuTrace, EmuTraceStart};
 use zisk_core::zisk_ops::ZiskOp;
 use zisk_core::{
-    EmulationMode, InstContext, Mem, ZiskInst, ZiskOperationType, ZiskRom, OUTPUT_ADDR, ROM_ENTRY,
-    SRC_C, SRC_IMM, SRC_IND, SRC_MEM, SRC_REG, SRC_STEP, STORE_IND, STORE_MEM, STORE_NONE,
-    STORE_REG,
+    reg_for_bpf_reg, EmulationMode, InstContext, Mem, ZiskInst, ZiskOperationType, ZiskRom, FRAME_REGS_LEN, FRAME_REGS_START, OUTPUT_ADDR, ROM_ENTRY, SRC_C, SRC_IMM, SRC_IND, SRC_MEM, SRC_REG, SRC_STEP, STORE_IND, STORE_MEM, STORE_NONE, STORE_REG, SYSCALL_ENTER_FRAME
 };
+
+#[serde_as]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct SerializedAccountMeta {
+    /// An account's public key.
+    #[serde_as(as = "DisplayFromStr")]
+    pub pubkey: solana_pubkey::Pubkey,
+    /// True if an `Instruction` requires a `Transaction` signature matching `pubkey`.
+    pub is_signer: bool,
+    /// True if the account data or metadata may be mutated during program execution.
+    pub is_writable: bool,
+}
+
+impl Into<AccountMeta> for SerializedAccountMeta {
+    fn into(self) -> AccountMeta {
+        AccountMeta {
+            pubkey: self.pubkey,
+            is_signer: self.is_signer,
+            is_writable: self.is_writable
+        }
+    }
+}
+
+#[serde_as]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct SerializedInstruction {
+    #[serde_as(as = "DisplayFromStr")]
+    pub program_id: solana_pubkey::Pubkey,
+    pub accounts: Vec<SerializedAccountMeta>,
+    //pub data: String
+    #[serde_as(as = "Hex")]
+    pub data: Vec<u8>,
+}
+
+impl Into<Instruction> for SerializedInstruction {
+    fn into(self) -> Instruction {
+        Instruction {
+            program_id: self.program_id,
+            accounts: self.accounts.into_iter().map(Into::into).collect::<Vec<_>>(),
+            data: self.data.into()
+        }
+    }
+}
+
 
 /// ZisK emulator structure, containing the ZisK rom, the list of ZisK operations, and the
 /// execution context
@@ -24,14 +75,13 @@ pub struct Emu<'a> {
     /// ZisK rom, containing the program to execute, which is constant for this program except for
     /// the input data
     pub rom: &'a ZiskRom,
-    /// Context, where the state of the execution is stored and modified at every execution step
-    pub ctx: EmuContext,
 
     // This array is used to store static data to avoid heap allocations and speed up the
     // conversion of data to be written to the bus
     static_array: [u64; MAX_OPERATION_DATA_SIZE],
 
-    pub mem_helpers: MemHelpers,
+    /// Context, where the state of the execution is stored and modified at every execution step
+    pub ctx: EmuContext,
 }
 
 /// ZisK emulator structure implementation
@@ -76,21 +126,12 @@ pub struct Emu<'a> {
 ///                         Emu::par_step_my_block(&mut self, emu_full_trace_vec: &mut EmuTrace)
 ///                             Emu::source_a_mem_reads_generate(instruction, &mut emu_full_trace_vec.mem_reads);
 impl<'a> Emu<'a> {
-    pub fn new(rom: &ZiskRom, chunk_size: u64) -> Emu {
-        Emu {
-            rom,
-            mem_helpers: MemHelpers::new(chunk_size),
-            ctx: EmuContext::default(),
-            static_array: [0; MAX_OPERATION_DATA_SIZE],
-        }
+    pub fn new(rom: &ZiskRom) -> Emu<'_> {
+        Emu { rom, ctx: EmuContext::default(), static_array: [0; MAX_OPERATION_DATA_SIZE] }
     }
 
-    pub fn from_emu_trace_start(
-        rom: &'a ZiskRom,
-        chunk_size: u64,
-        trace_start: &'a EmuTraceStart,
-    ) -> Emu<'a> {
-        let mut emu = Emu::new(rom, chunk_size);
+    pub fn from_emu_trace_start(rom: &'a ZiskRom, trace_start: &'a EmuTraceStart) -> Emu<'a> {
+        let mut emu = Emu::new(rom);
         emu.ctx.inst_ctx.pc = trace_start.pc;
         emu.ctx.inst_ctx.sp = trace_start.sp;
         emu.ctx.inst_ctx.step = trace_start.step;
@@ -100,13 +141,13 @@ impl<'a> Emu<'a> {
         emu
     }
 
-    pub fn create_emu_context(&mut self, inputs: Vec<u8>) -> EmuContext {
+    pub fn create_emu_context(&mut self) -> EmuContext {
         // Initialize an empty instance
-        let mut ctx = EmuContext::new(inputs);
+        let mut ctx = EmuContext::new_empty();
 
         // Create a new read section for every RO data entry of the rom
-        for i in 0..self.rom.ro_data.len() {
-            ctx.inst_ctx.mem.add_read_section(self.rom.ro_data[i].from, &self.rom.ro_data[i].data);
+        for (addr, data) in self.rom.ro_sections() {
+            ctx.inst_ctx.mem.add_read_section(addr, data);
         }
 
         // Sort read sections by start address to improve performance when using binary search
@@ -323,8 +364,8 @@ impl<'a> Emu<'a> {
                     assert!(*mem_reads_index < mem_reads.len());
                     self.ctx.inst_ctx.a = mem_reads[*mem_reads_index];
                     *mem_reads_index += 1;
-                    let payload = self.mem_helpers.mem_load(
-                        address as u32,
+                    let payload = MemHelpers::mem_load(
+                        address,
                         self.ctx.inst_ctx.step,
                         0,
                         8,
@@ -343,8 +384,8 @@ impl<'a> Emu<'a> {
                     *mem_reads_index += 1;
                     self.ctx.inst_ctx.a =
                         Mem::get_double_not_aligned_data(address, 8, raw_data_1, raw_data_2);
-                    let payload = self.mem_helpers.mem_load(
-                        address as u32,
+                    let payload = MemHelpers::mem_load(
+                        address,
                         self.ctx.inst_ctx.step,
                         0,
                         8,
@@ -731,8 +772,8 @@ impl<'a> Emu<'a> {
                     self.ctx.inst_ctx.b = mem_reads[*mem_reads_index];
 
                     *mem_reads_index += 1;
-                    let payload = self.mem_helpers.mem_load(
-                        address as u32,
+                    let payload = MemHelpers::mem_load(
+                        address,
                         self.ctx.inst_ctx.step,
                         1,
                         8,
@@ -748,13 +789,14 @@ impl<'a> Emu<'a> {
                         *mem_reads_index += 1;
                         self.ctx.inst_ctx.b =
                             Mem::get_single_not_aligned_data(address, 8, raw_data);
-                        let payload = self.mem_helpers.mem_load(
-                            address as u32,
+                        let payload = MemHelpers::mem_load(
+                            address,
                             self.ctx.inst_ctx.step,
                             1,
                             8,
                             [raw_data, 0],
                         );
+
                         data_bus.write_to_bus(MEM_BUS_ID, &payload);
                     } else {
                         assert!(*mem_reads_index < mem_reads.len());
@@ -765,8 +807,8 @@ impl<'a> Emu<'a> {
                         *mem_reads_index += 1;
                         self.ctx.inst_ctx.b =
                             Mem::get_double_not_aligned_data(address, 8, raw_data_1, raw_data_2);
-                        let payload = self.mem_helpers.mem_load(
-                            address as u32,
+                        let payload = MemHelpers::mem_load(
+                            address,
                             self.ctx.inst_ctx.step,
                             1,
                             8,
@@ -800,8 +842,8 @@ impl<'a> Emu<'a> {
                     assert!(*mem_reads_index < mem_reads.len());
                     self.ctx.inst_ctx.b = mem_reads[*mem_reads_index];
                     *mem_reads_index += 1;
-                    let payload = self.mem_helpers.mem_load(
-                        address as u32,
+                    let payload = MemHelpers::mem_load(
+                        address,
                         self.ctx.inst_ctx.step,
                         1,
                         8,
@@ -820,8 +862,8 @@ impl<'a> Emu<'a> {
                             instruction.ind_width,
                             raw_data,
                         );
-                        let payload = self.mem_helpers.mem_load(
-                            address as u32,
+                        let payload = MemHelpers::mem_load(
+                            address,
                             self.ctx.inst_ctx.step,
                             1,
                             instruction.ind_width as u8,
@@ -841,8 +883,8 @@ impl<'a> Emu<'a> {
                             raw_data_1,
                             raw_data_2,
                         );
-                        let payload = self.mem_helpers.mem_load(
-                            address as u32,
+                        let payload = MemHelpers::mem_load(
+                            address,
                             self.ctx.inst_ctx.step,
                             1,
                             8,
@@ -1020,7 +1062,7 @@ impl<'a> Emu<'a> {
                 // get it from memory
                 self.ctx.inst_ctx.mem.write(addr, val, 8);
                 if self.ctx.do_stats {
-                    self.ctx.stats.on_memory_write(addr, 8);
+                    self.ctx.stats.on_memory_write(addr, 8, val);
                 }
             }
             STORE_IND => {
@@ -1044,7 +1086,7 @@ impl<'a> Emu<'a> {
                 // Get it from memory
                 self.ctx.inst_ctx.mem.write(addr, val, instruction.ind_width);
                 if self.ctx.do_stats {
-                    self.ctx.stats.on_memory_write(addr, instruction.ind_width);
+                    self.ctx.stats.on_memory_write(addr, instruction.ind_width, val);
                 }
             }
             _ => panic!(
@@ -1239,8 +1281,8 @@ impl<'a> Emu<'a> {
                 let address = address as u64;
 
                 if Mem::is_full_aligned(address, 8) {
-                    let payload = self.mem_helpers.mem_write(
-                        address as u32,
+                    let payload = MemHelpers::mem_write(
+                        address,
                         self.ctx.inst_ctx.step,
                         2,
                         8,
@@ -1258,8 +1300,8 @@ impl<'a> Emu<'a> {
                         let raw_data = mem_reads[*mem_reads_index];
                         *mem_reads_index += 1;
 
-                        let payload = self.mem_helpers.mem_write(
-                            address as u32,
+                        let payload = MemHelpers::mem_write(
+                            address,
                             self.ctx.inst_ctx.step,
                             2,
                             8,
@@ -1275,8 +1317,8 @@ impl<'a> Emu<'a> {
                         let raw_data_2 = mem_reads[*mem_reads_index];
                         *mem_reads_index += 1;
 
-                        let payload = self.mem_helpers.mem_write(
-                            address as u32,
+                        let payload = MemHelpers::mem_write(
+                            address,
                             self.ctx.inst_ctx.step,
                             2,
                             8,
@@ -1302,8 +1344,8 @@ impl<'a> Emu<'a> {
 
                 // Otherwise, if aligned
                 if Mem::is_full_aligned(address, instruction.ind_width) {
-                    let payload = self.mem_helpers.mem_write(
-                        address as u32,
+                    let payload = MemHelpers::mem_write(
+                        address,
                         self.ctx.inst_ctx.step,
                         2,
                         instruction.ind_width as u8,
@@ -1321,8 +1363,8 @@ impl<'a> Emu<'a> {
                         let raw_data = mem_reads[*mem_reads_index];
                         *mem_reads_index += 1;
 
-                        let payload = self.mem_helpers.mem_write(
-                            address as u32,
+                        let payload = MemHelpers::mem_write(
+                            address,
                             self.ctx.inst_ctx.step,
                             2,
                             instruction.ind_width as u8,
@@ -1338,8 +1380,8 @@ impl<'a> Emu<'a> {
                         let raw_data_2 = mem_reads[*mem_reads_index];
                         *mem_reads_index += 1;
 
-                        let payload = self.mem_helpers.mem_write(
-                            address as u32,
+                        let payload = MemHelpers::mem_write(
+                            address,
                             self.ctx.inst_ctx.step,
                             2,
                             instruction.ind_width as u8,
@@ -1458,6 +1500,14 @@ impl<'a> Emu<'a> {
         while !self.ctx.inst_ctx.end && (self.ctx.inst_ctx.step < options.max_steps) {
             self.step_fast();
         }
+
+        // Detect and report error
+        if self.ctx.inst_ctx.error {
+            eprintln!(
+                "Emu::run_fast() finished with error at step={} pc=0x{:x}",
+                self.ctx.inst_ctx.step, self.ctx.inst_ctx.pc
+            );
+        }
     }
 
     /// Performs one single step of the emulation
@@ -1520,210 +1570,57 @@ impl<'a> Emu<'a> {
     }
 
     /// Run the whole program
-    pub fn run(
-        &mut self,
-        inputs: Vec<u8>,
-        options: &EmuOptions,
-        callback: Option<impl Fn(EmuTrace)>,
-    ) {
-        // Context, where the state of the execution is stored and modified at every execution step
-        self.ctx = self.create_emu_context(inputs.clone());
-
-        // Check that callback is provided if chunk size is specified
-        if options.chunk_size.is_some() {
-            // Check callback consistency
-            if callback.is_none() {
-                panic!("Emu::run() called with chunk size but no callback");
-            }
-
-            // Record callback into context
-            self.ctx.do_callback = true;
-            self.ctx.callback_steps = options.chunk_size.unwrap();
-
-            // Check steps value
-            if self.ctx.callback_steps == 0 {
-                panic!("Emu::run() called with chunk_size=0");
-            }
-
-            // Reserve enough entries for all the requested steps between callbacks
-            self.ctx.trace.mem_reads.reserve(self.ctx.callback_steps as usize);
-
-            // Init pc to the rom entry address
-            self.ctx.trace.start_state.pc = ROM_ENTRY;
-        }
-
-        // Call run_fast if only essential work is needed
-        if options.is_fast() {
-            return self.run_fast(options);
-        }
-        if options.generate_minimal_traces {
-            let par_emu_options =
-                ParEmuOptions { num_steps: 1024 * 1024, num_threads: 1, thread_id: 0 };
-            let minimal_trace = self.run_gen_trace(options, &par_emu_options);
-
-            for (c, chunk) in minimal_trace.iter().enumerate() {
-                println!("Chunk {c}:");
-                println!("\tStart state:");
-                println!("\t\tpc=0x{:x}", chunk.start_state.pc);
-                println!("\t\tsp=0x{:x}", chunk.start_state.sp);
-                println!("\t\tc=0x{:x}", chunk.start_state.c);
-                println!("\t\tstep={}", chunk.start_state.step);
-                for i in 1..chunk.start_state.regs.len() {
-                    println!("\t\tregister[{}]=0x{:x}", i, chunk.start_state.regs[i]);
-                }
-                println!("\tLast state:");
-                println!("\t\tc=0x{:x}", chunk.last_c);
-                println!("\tEnd:");
-                println!("\t\tend={}", if chunk.end { 1 } else { 0 });
-                println!("\tSteps:");
-                println!("\t\tsteps={}", chunk.steps);
-                println!("\t\tmem_reads_size={}", chunk.mem_reads.len());
-                for i in 0..chunk.mem_reads.len() {
-                    println!("\t\tchunk[{}].mem_reads[{}]={:08x}", c, i, chunk.mem_reads[i]);
-                }
-            }
-            return;
-        }
-        //println!("Emu::run() full-equipe");
-
-        // Store the stats option into the emulator context
-        self.ctx.do_stats = options.stats;
-
-        // While not done
-        while !self.ctx.inst_ctx.end {
-            if options.verbose {
-                println!(
-                    "Emu::run() step={} ctx.pc={}",
-                    self.ctx.inst_ctx.step, self.ctx.inst_ctx.pc
-                );
-            }
-            // Check trace PC
-            if options.tracerv && (self.ctx.inst_ctx.pc & 0b11 == 0) {
-                self.ctx.trace_pc = self.ctx.inst_ctx.pc;
-            }
-
-            // Log emulation step, if requested
-            if options.print_step.is_some()
-                && (options.print_step.unwrap() != 0)
-                && ((self.ctx.inst_ctx.step % options.print_step.unwrap()) == 0)
-            {
-                println!("step={}", self.ctx.inst_ctx.step);
-            }
-
-            // Stop the execution if we exceeded the specified running conditions
-            if self.ctx.inst_ctx.step >= options.max_steps {
-                break;
-            }
-
-            // Execute the current step
-            self.step(options, &callback);
-
-            // Only trace after finishing a riscV instruction
-            if options.tracerv && (self.ctx.inst_ctx.pc & 0b11) == 0 {
-                // Store logs in a vector of strings
-                let mut changes: Vec<String> = Vec::new();
-
-                // Get the current state of the registers
-                let new_regs_array = self.get_regs_array();
-
-                // For all current registers
-                for (i, register) in new_regs_array.iter().enumerate() {
-                    // If they changed since previous stem, add them to the logs
-                    if *register != self.ctx.tracerv_current_regs[i] {
-                        changes.push(format!(
-                            "{}={:x}",
-                            RiscVRegisters::name_from_usize(i).unwrap(),
-                            *register
-                        ));
-                        self.ctx.tracerv_current_regs[i] = *register;
-                    }
-                }
-
-                // Add a log trace including all modified registers
-                self.ctx.tracerv.push(format!(
-                    "{}: {} -> {}",
-                    self.ctx.tracerv_step,
-                    self.ctx.trace_pc,
-                    changes.join(", ")
-                ));
-
-                // Increase tracer step counter
-                self.ctx.tracerv_step += 1;
-            }
-
-            // println!("Emu::run() done ctx.pc={}", self.ctx.pc); // 2147483828
-        }
-
-        // Print stats report
-        if options.stats {
-            let report = self.ctx.stats.report();
-            println!("{report}");
-        }
-    }
-
-    /// Run the whole program
-    pub fn par_run(
-        &mut self,
-        inputs: Vec<u8>,
-        options: &EmuOptions,
-        par_options: &ParEmuOptions,
-    ) -> Vec<EmuTrace> {
-        // Context, where the state of the execution is stored and modified at every execution step
-        self.ctx = self.create_emu_context(inputs);
-
-        // Init pc to the rom entry address
-        self.ctx.trace.start_state.pc = ROM_ENTRY;
-
-        // Store the stats option into the emulator context
-        self.ctx.do_stats = options.stats;
-
-        // Set emulation mode
-        self.ctx.inst_ctx.emulation_mode = EmulationMode::GenerateMemReads;
-
-        let mut emu_traces = Vec::new();
-
-        while !self.ctx.inst_ctx.end {
-            let block_idx = self.ctx.inst_ctx.step / par_options.num_steps as u64;
-            let is_my_block =
-                block_idx % par_options.num_threads as u64 == par_options.thread_id as u64;
-
-            if !is_my_block {
-                self.par_step();
-            } else {
-                // Check if is the first step of a new block
-                if self.ctx.inst_ctx.step % par_options.num_steps as u64 == 0 {
-                    emu_traces.push(EmuTrace {
-                        start_state: EmuTraceStart {
-                            pc: self.ctx.inst_ctx.pc,
-                            sp: self.ctx.inst_ctx.sp,
-                            c: self.ctx.inst_ctx.c,
-                            step: self.ctx.inst_ctx.step,
-                            regs: self.ctx.inst_ctx.regs,
-                        },
-                        last_c: 0,
-                        steps: 0,
-                        mem_reads: Vec::with_capacity(par_options.num_steps),
-                        end: false,
-                    });
-                }
-
-                self.par_step_my_block(emu_traces.last_mut().unwrap());
-
-                if self.ctx.inst_ctx.step >= options.max_steps {
-                    panic!("Emu::par_run() reached max_steps");
-                }
-            }
-        }
-
-        emu_traces
-    }
-
-    /// Run the whole program
     pub fn run_gen_trace(
         &mut self,
+        inputs: Vec<u8>,
         options: &EmuOptions,
         par_options: &ParEmuOptions,
-    ) -> Vec<EmuTrace> {
+        accounts: &[(Pubkey, solana_account::Account)]
+    ) -> Result<(Vec<EmuTrace>, (Arc<TxInput>, Arc<TxInput>)), EmulationError> {
+        use solana_sdk::bpf_loader_upgradeable;
+
+        let mut runner = mollusk_svm::Mollusk::default();
+        let _ = InstructionTraceBuilder::prepare_for_tracing(&mut runner);
+
+        for (key, acc) in accounts {
+            if acc.executable {
+                runner.add_program_with_elf_and_loader(key, acc.data.as_slice(), &bpf_loader_upgradeable::id());
+            }
+        }
+
+        let instruction = serde_json::from_str::<SerializedInstruction>(
+            str::from_utf8(inputs.as_slice()).expect("broken utf8 in instruction")).expect("instruction decoding failed").into();
+
+        let init_state = Arc::new(TxInput::new_with_defaults(&instruction, accounts).map_err(EmulationError::InstructionError)?);
+
+        tracing::debug!("executing {instruction:?} with {accounts:?}");
+        let full_trace = InstructionTraceBuilder::build(&mut runner, &instruction, accounts)?;
+        assert!(full_trace.frames.len() == 1);
+        for log in full_trace.frames[0].logs.as_slice() {
+            tracing::info!("Program log: {log}");
+        }
+        tracing::info!("full solana trace len {}", full_trace.frames[0].entries.len());
+
+        let final_state = Arc::new(TxInput::new_with_defaults(&instruction, &full_trace.result.resulting_accounts).map_err(EmulationError::InstructionError)?);
+
+        // Context, where the state of the execution is stored and modified at every execution step
+        self.ctx = EmuContext::new_empty();
+        for region in full_trace.frames[0].address_space.regions.as_slice() {
+            //println!("vm_addr={} vm_addr_end={} vm_gap_shift={}, region mem len {}", region.vm_addr, region.vm_addr_end, region.vm_gap_shift, region.len);
+            if region.writable.get() {
+                self.ctx.inst_ctx.mem.add_inited_write_section(region.vm_addr, 
+                   unsafe {slice::from_raw_parts(region.host_addr.get() as *const u8, region.len as usize)});
+            } else {
+                self.ctx.inst_ctx.mem.add_read_section(region.vm_addr,
+                    unsafe {slice::from_raw_parts(region.host_addr.get() as *const u8, region.len as usize)});
+            }
+        }
+        self.ctx.inst_ctx.mem.add_write_section(SYSCALL_ENTER_FRAME, 13*8);
+        self.ctx.inst_ctx.mem.add_write_section(FRAME_REGS_START, FRAME_REGS_LEN);
+
+//        self.ctx.inst_ctx.mem.pad_init_regions();
+        self.ctx.inst_ctx.mem.init_sort_regions();
+
         // Init pc to the rom entry address
         self.ctx.trace.start_state.pc = ROM_ENTRY;
 
@@ -1735,6 +1632,7 @@ impl<'a> Emu<'a> {
 
         let mut emu_traces = Vec::new();
 
+        let mut sol_inst = 0;
         while !self.ctx.inst_ctx.end {
             // Check if is the first step of a new block
             if self.ctx.inst_ctx.step % par_options.num_steps as u64 == 0 {
@@ -1753,6 +1651,27 @@ impl<'a> Emu<'a> {
                 });
             }
 
+
+            if let Some(sol_pc) = ZiskRom::sol_pc(self.rom, self.ctx.inst_ctx.pc) {
+                //println!("executing sol inst {sol_pc}");
+                //if full_trace.frames[0].entries[sol_inst].mem.is_some() {
+                //    println!("sol memory access {:?}", full_trace.frames[0].entries[sol_inst].mem);
+                //}
+                let entry = &full_trace.frames[0].entries[sol_inst];
+                //if sol_inst + 1 < full_trace.frames[0].entries.len() {
+                //    let sol_pc = full_trace.frames[0].entries[sol_inst + 1].pc();
+                //    println!("next sol inst {sol_pc}");
+                //}
+                //println!("regs before {:?}", entry.regs_before);
+                //println!("zisk bpf regs before {:?}", self.ctx.inst_ctx.regs[4..][..12].to_vec());
+                assert!(sol_pc == entry.pc());
+                for i in 0..entry.regs_before.len()-1 {
+                    assert!(entry.regs_before[i] == self.ctx.inst_ctx.regs[reg_for_bpf_reg(i as u8) as usize]);
+                }
+                sol_inst += 1;
+                //println!("sol entry {entry:?}")
+            }
+
             self.par_step_my_block(emu_traces.last_mut().unwrap());
 
             if self.ctx.inst_ctx.step >= options.max_steps {
@@ -1760,7 +1679,30 @@ impl<'a> Emu<'a> {
             }
         }
 
-        emu_traces
+        tracing::trace!("finish step {} pc {}", self.ctx.inst_ctx.step, self.ctx.inst_ctx.pc);
+        {
+            tracing::debug!("init {init_state:?} final {final_state:?}");
+            let mut addrs = 0;
+            let mut prev_addr = 0;
+            tracing::debug!("layout {:?}", init_state.debug_data);
+            for addr in init_state.iter() {
+                assert!(init_state.read(addr).is_some());
+                let init_val = init_state.read(addr).unwrap();
+                let init_tracer_val = full_trace.frames[0].address_space.load::<u64>(addr).unwrap();
+                assert!(addr > prev_addr);
+                let final_val = final_state.read(addr).unwrap();
+                let from_trace = full_trace.frames[0].final_address_space.load::<u64>(addr).unwrap();
+                assert!(init_val == init_tracer_val, "failed for {addr} {init_val} != {init_tracer_val}");
+                if final_val != from_trace {
+                    assert!(final_state.patch(addr, from_trace, true));
+                    tracing::debug!("patching {addr} with {from_trace}");
+                }
+                prev_addr = addr;
+                addrs += 1;
+            }
+            tracing::info!("init state size {addrs}");
+        }
+        Ok((emu_traces, (init_state, final_state)))
     }
 
     /// Performs one single step of the emulation
@@ -1873,6 +1815,8 @@ impl<'a> Emu<'a> {
     #[inline(always)]
     pub fn par_step_my_block(&mut self, emu_full_trace_vec: &mut EmuTrace) {
         let instruction = self.rom.get_instruction(self.ctx.inst_ctx.pc);
+        //println!("zisk regs before {:?}", self.ctx.inst_ctx.regs.to_vec());
+        //println!("executing pc={} {instruction:?}", self.ctx.inst_ctx.pc);
         // Build the 'a' register value  based on the source specified by the current instruction
         self.source_a_mem_reads_generate(instruction, &mut emu_full_trace_vec.mem_reads);
 

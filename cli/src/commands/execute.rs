@@ -1,11 +1,10 @@
 use anyhow::Result;
-use asm_runner::{AsmRunnerOptions, AsmServices};
 use clap::Parser;
 use colored::Colorize;
 use fields::Goldilocks;
 use libloading::{Library, Symbol};
 use proofman::ProofMan;
-use proofman_common::ParamsGPU;
+use proofman_common::{initialize_logger, ParamsGPU};
 use rom_setup::{
     gen_elf_hash, get_elf_bin_file_path, get_elf_data_hash, get_rom_blowup_factor,
     DEFAULT_CACHE_PATH,
@@ -13,10 +12,7 @@ use rom_setup::{
 use std::{collections::HashMap, fs, path::PathBuf};
 
 use crate::{
-    commands::{
-        cli_fail_if_gpu_mode, cli_fail_if_macos, get_proving_key, get_witness_computation_lib,
-        initialize_mpi, Field,
-    },
+    commands::{cli_fail_if_gpu_mode, get_proving_key, get_witness_computation_lib, Field},
     ux::print_banner,
     ZISK_VERSION_MESSAGE,
 };
@@ -27,7 +23,7 @@ use zisk_common::ZiskLibInitFn;
 #[command(propagate_version = true)]
 #[command(group(
     clap::ArgGroup::new("input_mode")
-        .args(["asm", "emulator"])
+        .args(["emulator"])
         .multiple(false)
         .required(false)
 ))]
@@ -41,11 +37,6 @@ pub struct ZiskExecute {
     /// to generate the witness.
     #[clap(short = 'e', long)]
     pub elf: PathBuf,
-
-    /// ASM file path
-    /// Optional, mutually exclusive with `--emulator`
-    #[clap(short = 's', long)]
-    pub asm: Option<PathBuf>,
 
     /// Use prebuilt emulator (mutually exclusive with `--asm`)
     #[clap(short = 'l', long, action = clap::ArgAction::SetTrue)]
@@ -84,18 +75,16 @@ pub struct ZiskExecute {
     /// Verbosity (-v, -vv)
     #[arg(short = 'v', long, action = clap::ArgAction::Count, help = "Increase verbosity level")]
     pub verbose: u8, // Using u8 to hold the number of `-v`
+
+    #[clap(short = 'j', long, default_value_t = false)]
+    pub shared_tables: bool,
 }
 
 impl ZiskExecute {
     pub fn run(&mut self) -> Result<()> {
-        cli_fail_if_macos()?;
         cli_fail_if_gpu_mode()?;
 
         print_banner();
-
-        let mpi_context = initialize_mpi()?;
-
-        proofman_common::initialize_logger(self.verbose.into(), Some(mpi_context.world_rank));
 
         let default_cache_path =
             std::env::var("HOME").ok().map(PathBuf::from).unwrap().join(DEFAULT_CACHE_PATH);
@@ -110,31 +99,6 @@ impl ZiskExecute {
         }
 
         let emulator = if cfg!(target_os = "macos") { true } else { self.emulator };
-
-        let mut asm_rom = None;
-        if emulator {
-            self.asm = None;
-        } else if self.asm.is_none() {
-            let stem = self.elf.file_stem().unwrap().to_str().unwrap();
-            let hash = get_elf_data_hash(&self.elf)
-                .map_err(|e| anyhow::anyhow!("Error computing ELF hash: {}", e))?;
-            let new_filename = format!("{stem}-{hash}-mt.bin");
-            let asm_rom_filename = format!("{stem}-{hash}-rh.bin");
-            asm_rom = Some(default_cache_path.join(asm_rom_filename));
-            self.asm = Some(default_cache_path.join(new_filename));
-        }
-
-        if let Some(asm_path) = &self.asm {
-            if !asm_path.exists() {
-                return Err(anyhow::anyhow!("ASM file not found at {:?}", asm_path.display()));
-            }
-        }
-
-        if let Some(asm_rom) = &asm_rom {
-            if !asm_rom.exists() {
-                return Err(anyhow::anyhow!("ASM file not found at {:?}", asm_rom.display()));
-            }
-        }
 
         if let Some(input) = &self.input {
             if !input.exists() {
@@ -159,52 +123,22 @@ impl ZiskExecute {
         let mut custom_commits_map: HashMap<String, PathBuf> = HashMap::new();
         custom_commits_map.insert("rom".to_string(), rom_bin_path);
 
-        let proofman;
-        #[cfg(distributed)]
-        {
-            proofman = ProofMan::<Goldilocks>::new(
-                proving_key,
-                custom_commits_map,
-                true,
-                false,
-                false,
-                ParamsGPU::default(),
-                self.verbose.into(),
-                Some(mpi_context.universe),
-            )
-            .expect("Failed to initialize proofman");
-        }
-        #[cfg(not(distributed))]
-        {
-            proofman = ProofMan::<Goldilocks>::new(
-                proving_key,
-                custom_commits_map,
-                true,
-                false,
-                false,
-                ParamsGPU::default(),
-                self.verbose.into(),
-            )
-            .expect("Failed to initialize proofman");
-        }
+        let proofman = ProofMan::<Goldilocks>::new(
+            proving_key,
+            custom_commits_map,
+            true,
+            false,
+            false,
+            ParamsGPU::default(),
+            self.verbose.into(),
+        )
+        .expect("Failed to initialize proofman");
 
         let mut witness_lib;
 
-        let asm_services =
-            AsmServices::new(mpi_context.world_rank, mpi_context.local_rank, self.port);
-        let asm_runner_options = AsmRunnerOptions::new()
-            .with_verbose(self.verbose > 0)
-            .with_base_port(self.port)
-            .with_world_rank(mpi_context.world_rank)
-            .with_local_rank(mpi_context.local_rank)
-            .with_unlock_mapped_memory(self.unlock_mapped_memory);
+        let mpi_ctx = proofman.get_mpi_ctx();
 
-        if self.asm.is_some() {
-            // Start ASM microservices
-            tracing::info!(">>> [{}] Starting ASM microservices.", mpi_context.world_rank,);
-
-            asm_services.start_asm_services(self.asm.as_ref().unwrap(), asm_runner_options)?;
-        }
+        initialize_logger(self.verbose.into(), Some(mpi_ctx.rank));
 
         match self.field {
             Field::Goldilocks => {
@@ -216,13 +150,11 @@ impl ZiskExecute {
                 witness_lib = witness_lib_constructor(
                     self.verbose.into(),
                     self.elf.clone(),
-                    self.asm.clone(),
-                    asm_rom,
-                    None,
-                    Some(mpi_context.world_rank),
-                    Some(mpi_context.local_rank),
+                    Some(mpi_ctx.rank),
+                    Some(mpi_ctx.node_rank),
                     self.port,
                     self.unlock_mapped_memory,
+                    self.shared_tables,
                 )
                 .expect("Failed to initialize witness library");
 
@@ -233,12 +165,6 @@ impl ZiskExecute {
                     .map_err(|e| anyhow::anyhow!("Error generating execution: {}", e))?;
             }
         };
-
-        if self.asm.is_some() {
-            // Shut down ASM microservices
-            tracing::info!("<<< [{}] Shutting down ASM microservices.", mpi_context.world_rank);
-            asm_services.stop_asm_services()?;
-        }
 
         Ok(())
     }
@@ -254,16 +180,11 @@ impl ZiskExecute {
 
         println!("{: >12} {}", "Elf".bright_green().bold(), self.elf.display());
 
-        if self.asm.is_some() {
-            let asm_path = self.asm.as_ref().unwrap().display();
-            println!("{: >12} {}", "ASM runner".bright_green().bold(), asm_path);
-        } else {
-            println!(
-                "{: >12} {}",
-                "Emulator".bright_green().bold(),
-                "Running in emulator mode".bright_yellow()
-            );
-        }
+        println!(
+            "{: >12} {}",
+            "Emulator".bright_green().bold(),
+            "Running in emulator mode".bright_yellow()
+        );
 
         if self.input.is_some() {
             let inputs_path = self.input.as_ref().unwrap().display();

@@ -1,6 +1,8 @@
 use super::ArithEqMemInputConfig;
 use crate::executors::Secp256k1;
+use std::collections::VecDeque;
 use zisk_common::BusId;
+use zisk_common::MemCollectorInfo;
 
 pub const SECP256K1_ADD_MEM_CONFIG: ArithEqMemInputConfig = ArithEqMemInputConfig {
     indirect_params: 2,
@@ -11,11 +13,12 @@ pub const SECP256K1_ADD_MEM_CONFIG: ArithEqMemInputConfig = ArithEqMemInputConfi
 };
 
 pub fn generate_secp256k1_add_mem_inputs(
-    addr_main: u32,
+    addr_main: u64,
     step_main: u64,
     data: &[u64],
     only_counters: bool,
-) -> Vec<(BusId, Vec<u64>)> {
+    pending: &mut VecDeque<(BusId, Vec<u64>)>,
+) {
     // op,op_type,a,b,addr[2],...
     let p1: &[u64; 8] = &data[6..14].try_into().unwrap();
     let p2: &[u64; 8] = &data[14..22].try_into().unwrap();
@@ -28,6 +31,15 @@ pub fn generate_secp256k1_add_mem_inputs(
         data,
         Some(&p3),
         only_counters,
+        pending,
         &SECP256K1_ADD_MEM_CONFIG,
-    )
+    );
+}
+
+pub fn skip_secp256k1_add_mem_inputs(
+    addr_main: u64,
+    data: &[u64],
+    mem_collectors_info: &[MemCollectorInfo],
+) -> bool {
+    super::skip_mem_inputs(addr_main, data, &SECP256K1_ADD_MEM_CONFIG, mem_collectors_info)
 }

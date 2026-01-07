@@ -4,12 +4,13 @@
 
 use std::{collections::VecDeque, ops::Add};
 
+use zisk_common::MemCollectorInfo;
 use zisk_common::{
     BusDevice, BusDeviceMode, BusId, Counter, Metrics, A, B, OPERATION_BUS_ID, OP_TYPE,
 };
 use zisk_core::ZiskOperationType;
 
-use crate::generate_keccakf_mem_inputs;
+use crate::{generate_keccakf_mem_inputs, skip_keccakf_mem_inputs};
 
 /// The `KeccakfCounter` struct represents a counter that monitors and measures
 /// keccakf-related operations on the data bus.
@@ -105,6 +106,7 @@ impl BusDevice<u64> for KeccakfCounterInputGen {
         bus_id: &BusId,
         data: &[u64],
         pending: &mut VecDeque<(BusId, Vec<u64>)>,
+        mem_collector_info: Option<&[MemCollectorInfo]>,
     ) -> bool {
         debug_assert!(*bus_id == OPERATION_BUS_ID);
 
@@ -112,15 +114,21 @@ impl BusDevice<u64> for KeccakfCounterInputGen {
             return true;
         }
 
+        if let Some(mem_collectors_info) = mem_collector_info {
+            if skip_keccakf_mem_inputs(data[B], mem_collectors_info) {
+                return true;
+            }
+        }
+
         let step_main = data[A];
-        let addr_main = data[B] as u32;
+        let addr_main = data[B];
 
         let only_counters = self.mode == BusDeviceMode::Counter;
         if only_counters {
             self.measure(data);
         }
 
-        pending.extend(generate_keccakf_mem_inputs(addr_main, step_main, data, only_counters));
+        generate_keccakf_mem_inputs(addr_main, step_main, data, only_counters, pending);
 
         true
     }

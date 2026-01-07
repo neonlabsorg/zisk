@@ -4,21 +4,18 @@ use crate::{
     ServerConfig, ZiskBaseResponse, ZiskCmdResult, ZiskResponse, ZiskResultCode, ZiskService,
 };
 use colored::Colorize;
-use executor::ZiskExecutionResult;
+use executor::{Stats, ZiskExecutionResult};
 use fields::Goldilocks;
 use proofman::ProofMan;
 use proofman_common::DebugInfo;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Mutex;
 use witness::WitnessLibrary;
 use zisk_common::ExecutorStats;
 
 #[cfg(feature = "stats")]
-use std::time::Duration;
-#[cfg(feature = "stats")]
-use std::time::Instant;
-#[cfg(feature = "stats")]
-use zisk_common::{ExecutorStatsDuration, ExecutorStatsEnum};
+use zisk_common::ExecutorStatsEvent;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct ZiskVerifyConstraintsRequest {
@@ -60,14 +57,23 @@ impl ZiskServiceVerifyConstraintsHandler {
                     .verify_proof_constraints_from_lib(Some(request_input), &debug_info, false)
                     .map_err(|e| anyhow::anyhow!("Error verifying proof: {}", e))
                     .expect("Failed to generate proof");
-
+                proofman.set_barrier();
                 let elapsed = start.elapsed();
 
-                let result: (ZiskExecutionResult, Arc<Mutex<ExecutorStats>>) = *witness_lib
+                #[allow(clippy::type_complexity)]
+                let result: (
+                    ZiskExecutionResult,
+                    Arc<Mutex<ExecutorStats>>,
+                    Arc<Mutex<HashMap<usize, Stats>>>,
+                ) = *witness_lib
                     .get_execution_result()
                     .ok_or_else(|| anyhow::anyhow!("No execution result found"))
                     .expect("Failed to get execution result")
-                    .downcast::<(ZiskExecutionResult, Arc<Mutex<ExecutorStats>>)>()
+                    .downcast::<(
+                        ZiskExecutionResult,
+                        Arc<Mutex<ExecutorStats>>,
+                        Arc<Mutex<HashMap<usize, Stats>>>,
+                    )>()
                     .map_err(|_| anyhow::anyhow!("Failed to downcast execution result"))
                     .expect("Failed to downcast execution result");
 
@@ -90,10 +96,8 @@ impl ZiskServiceVerifyConstraintsHandler {
                 #[cfg(feature = "stats")]
                 {
                     let stats = result.1;
-                    stats.lock().unwrap().add_stat(ExecutorStatsEnum::End(ExecutorStatsDuration {
-                        start_time: Instant::now(),
-                        duration: Duration::new(0, 1),
-                    }));
+                    let stats_id = stats.lock().unwrap().get_id();
+                    stats.lock().unwrap().add_stat(0, stats_id, "END", 0, ExecutorStatsEvent::Mark);
                     stats.lock().unwrap().store_stats();
                 }
             }
@@ -106,7 +110,7 @@ impl ZiskServiceVerifyConstraintsHandler {
                     result: ZiskCmdResult::InProgress,
                     code: ZiskResultCode::Ok,
                     msg: None,
-                    node: config.asm_runner_options.world_rank,
+                    node: config.world_rank,
                 },
                 server_id: config.server_id.to_string(),
                 elf_file: config.elf.display().to_string(),
@@ -114,5 +118,16 @@ impl ZiskServiceVerifyConstraintsHandler {
             }),
             Some(handle),
         )
+    }
+    pub fn process_handle(
+        request: ZiskVerifyConstraintsRequest,
+        proofman: Arc<ProofMan<Goldilocks>>,
+        debug_info: Arc<DebugInfo>,
+    ) {
+        proofman
+            .verify_proof_constraints_from_lib(Some(request.input), &debug_info, false)
+            .map_err(|e| anyhow::anyhow!("Error verifying proof: {}", e))
+            .expect("Failed to generate proof");
+        proofman.set_barrier();
     }
 }

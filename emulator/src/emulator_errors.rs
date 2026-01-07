@@ -6,6 +6,7 @@ pub enum ZiskEmulatorErr {
     AddressOutOfRange(u64),
     EmulationNoCompleted,
     Unknown(String),
+    SolanaEmulationError(svm_tracer::error::EmulationError)
 }
 
 #[derive(Debug)]
@@ -32,6 +33,7 @@ impl fmt::Display for ZiskEmulatorErr {
             }
             ZiskEmulatorErr::EmulationNoCompleted => write!(f, "Emulation not completed"),
             ZiskEmulatorErr::Unknown(code) => write!(f, "Error code {code}"),
+            ZiskEmulatorErr::SolanaEmulationError(err) => err.fmt(f),
         }
     }
 }
@@ -42,6 +44,7 @@ impl Error for ZiskEmulatorErr {
             ZiskEmulatorErr::WrongArguments(e) => Some(e),
             ZiskEmulatorErr::AddressOutOfRange(_) => None,
             ZiskEmulatorErr::EmulationNoCompleted => None,
+            ZiskEmulatorErr::SolanaEmulationError(_) => None,
             ZiskEmulatorErr::Unknown(_) => None,
         }
     }

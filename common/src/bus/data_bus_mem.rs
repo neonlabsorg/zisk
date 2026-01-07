@@ -21,8 +21,8 @@ pub struct MemBusData;
 
 impl MemBusData {
     #[inline(always)]
-    pub fn get_addr(data: &[u64]) -> u32 {
-        data[ADDR] as u32
+    pub fn get_addr(data: &[u64]) -> u64 {
+        data[ADDR]
     }
 
     #[inline(always)]
@@ -48,5 +48,20 @@ impl MemBusData {
     #[inline(always)]
     pub fn get_mem_values(data: &[u64]) -> [u64; 2] {
         [data[MEM_VALUE_0], data[MEM_VALUE_1]]
+    }
+}
+
+pub struct MemCollectorInfo {
+    pub from_addr: u64,
+    pub to_addr: u64,
+    pub min_addr: u64,
+}
+
+impl MemCollectorInfo {
+    pub fn skip(&self, addr_w: u64) -> bool {
+        if addr_w > self.to_addr || addr_w < self.min_addr || addr_w < self.from_addr {
+            return true;
+        }
+        false
     }
 }

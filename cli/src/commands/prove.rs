@@ -1,35 +1,34 @@
 use crate::{
-    commands::{
-        cli_fail_if_macos, get_proving_key, get_witness_computation_lib, initialize_mpi, Field,
-    },
+    commands::{get_proving_key, get_witness_computation_lib, Field},
     ux::print_banner,
     ZISK_VERSION_MESSAGE,
 };
 use anyhow::Result;
-use asm_runner::{AsmRunnerOptions, AsmServices};
 use bytemuck::cast_slice;
 use colored::Colorize;
-use executor::ZiskExecutionResult;
+use executor::{Stats, ZiskExecutionResult};
 use fields::Goldilocks;
 use libloading::{Library, Symbol};
 use proofman::ProofMan;
-use proofman_common::{json_to_debug_instances_map, DebugInfo, ModeName, ParamsGPU, ProofOptions};
+use proofman::{ProofInfo, ProvePhase, ProvePhaseInputs, ProvePhaseResult};
+use proofman_common::{
+    initialize_logger, json_to_debug_instances_map, DebugInfo, ModeName, ParamsGPU, ProofOptions,
+};
 use rom_setup::{
     gen_elf_hash, get_elf_bin_file_path, get_elf_data_hash, get_rom_blowup_factor,
     DEFAULT_CACHE_PATH,
 };
 use std::io::Write;
 use std::sync::{Arc, Mutex};
-#[cfg(feature = "stats")]
-use std::time::{Duration, Instant};
 use std::{
     collections::HashMap,
     fs::{self, File},
     path::PathBuf,
 };
-use zisk_common::{ExecutorStats, ProofLog, ZiskLibInitFn};
 #[cfg(feature = "stats")]
-use zisk_common::{ExecutorStatsDuration, ExecutorStatsEnum};
+use zisk_common::ExecutorStatsEvent;
+use zisk_common::{ExecutorStats, ProofLog, ZiskLibInitFn};
+use zstd::stream::write::Encoder;
 
 // Structure representing the 'prove' subcommand of cargo.
 #[derive(clap::Args)]
@@ -37,7 +36,7 @@ use zisk_common::{ExecutorStatsDuration, ExecutorStatsEnum};
 #[command(propagate_version = true)]
 #[command(group(
     clap::ArgGroup::new("input_mode")
-        .args(["asm", "emulator"])
+        .args(["emulator"])
         .multiple(false)
         .required(false)
 ))]
@@ -51,11 +50,6 @@ pub struct ZiskProve {
     /// to generate the witness.
     #[clap(short = 'e', long)]
     pub elf: PathBuf,
-
-    /// ASM file path
-    /// Optional, mutually exclusive with `--emulator`
-    #[clap(short = 's', long)]
-    pub asm: Option<PathBuf>,
 
     /// Use prebuilt emulator (mutually exclusive with `--asm`)
     #[clap(short = 'l', long, action = clap::ArgAction::SetTrue)]
@@ -123,22 +117,16 @@ pub struct ZiskProve {
     #[clap(short = 'b', long, default_value_t = false)]
     pub save_proofs: bool,
 
-    #[clap(short = 'c', long)]
-    pub chunk_size_bits: Option<u64>,
-
-    #[clap(long, default_value_t = false)]
+    #[clap(short = 'm', long, default_value_t = false)]
     pub minimal_memory: bool,
+
+    #[clap(short = 'j', long, default_value_t = false)]
+    pub shared_tables: bool,
 }
 
 impl ZiskProve {
     pub fn run(&mut self) -> Result<()> {
-        cli_fail_if_macos()?;
-
         print_banner();
-
-        let mpi_context = initialize_mpi()?;
-
-        proofman_common::initialize_logger(self.verbose.into(), Some(mpi_context.world_rank));
 
         let proving_key = get_proving_key(self.proving_key.as_ref());
 
@@ -178,33 +166,6 @@ impl ZiskProve {
             }
         }
 
-        let emulator = if cfg!(target_os = "macos") { true } else { self.emulator };
-
-        let mut asm_rom = None;
-        if emulator {
-            self.asm = None;
-        } else if self.asm.is_none() {
-            let stem = self.elf.file_stem().unwrap().to_str().unwrap();
-            let hash = get_elf_data_hash(&self.elf)
-                .map_err(|e| anyhow::anyhow!("Error computing ELF hash: {}", e))?;
-            let new_filename = format!("{stem}-{hash}-mt.bin");
-            let asm_rom_filename = format!("{stem}-{hash}-rh.bin");
-            asm_rom = Some(default_cache_path.join(asm_rom_filename));
-            self.asm = Some(default_cache_path.join(new_filename));
-        }
-
-        if let Some(asm_path) = &self.asm {
-            if !asm_path.exists() {
-                return Err(anyhow::anyhow!("ASM file not found at {:?}", asm_path.display()));
-            }
-        }
-
-        if let Some(asm_rom) = &asm_rom {
-            if !asm_rom.exists() {
-                return Err(anyhow::anyhow!("ASM file not found at {:?}", asm_rom.display()));
-            }
-        }
-
         if let Some(input) = &self.input {
             if !input.exists() {
                 return Err(anyhow::anyhow!("Input file not found at {:?}", input.display()));
@@ -240,49 +201,19 @@ impl ZiskProve {
             gpu_params.with_max_witness_stored(self.max_witness_stored.unwrap());
         }
 
-        let proofman;
-        #[cfg(distributed)]
-        {
-            proofman = ProofMan::<Goldilocks>::new(
-                proving_key,
-                custom_commits_map,
-                verify_constraints,
-                self.aggregation,
-                self.final_snark,
-                gpu_params,
-                self.verbose.into(),
-                Some(mpi_context.universe),
-            )
-            .expect("Failed to initialize proofman");
-        }
-        #[cfg(not(distributed))]
-        {
-            proofman = ProofMan::<Goldilocks>::new(
-                proving_key,
-                custom_commits_map,
-                verify_constraints,
-                self.aggregation,
-                self.final_snark,
-                gpu_params,
-                self.verbose.into(),
-            )
-            .expect("Failed to initialize proofman");
-        }
-        let asm_services =
-            AsmServices::new(mpi_context.world_rank, mpi_context.local_rank, self.port);
-        let asm_runner_options = AsmRunnerOptions::new()
-            .with_verbose(self.verbose > 0)
-            .with_base_port(self.port)
-            .with_world_rank(mpi_context.world_rank)
-            .with_local_rank(mpi_context.local_rank)
-            .with_unlock_mapped_memory(self.unlock_mapped_memory);
+        let proofman = ProofMan::<Goldilocks>::new(
+            proving_key,
+            custom_commits_map,
+            verify_constraints,
+            self.aggregation,
+            self.final_snark,
+            gpu_params,
+            self.verbose.into(),
+        )
+        .expect("Failed to initialize proofman");
+        let mpi_ctx = proofman.get_mpi_ctx();
 
-        if self.asm.is_some() {
-            // Start ASM microservices
-            tracing::info!(">>> [{}] Starting ASM microservices.", mpi_context.world_rank,);
-
-            asm_services.start_asm_services(self.asm.as_ref().unwrap(), asm_runner_options)?;
-        }
+        initialize_logger(self.verbose.into(), Some(mpi_ctx.rank));
 
         let library =
             unsafe { Library::new(get_witness_computation_lib(self.witness_lib.as_ref()))? };
@@ -291,13 +222,11 @@ impl ZiskProve {
         let mut witness_lib = witness_lib_constructor(
             self.verbose.into(),
             self.elf.clone(),
-            self.asm.clone(),
-            asm_rom,
-            self.chunk_size_bits,
-            Some(mpi_context.world_rank),
-            Some(mpi_context.local_rank),
+            Some(mpi_ctx.rank),
+            Some(mpi_ctx.node_rank),
             self.port,
             self.unlock_mapped_memory,
+            self.shared_tables,
         )
         .expect("Failed to initialize witness library");
 
@@ -318,9 +247,15 @@ impl ZiskProve {
         } else {
             match self.field {
                 Field::Goldilocks => {
-                    (proof_id, vadcop_final_proof) = proofman
+                    proofman.set_barrier();
+                    let result = proofman
                         .generate_proof_from_lib(
-                            self.input.clone(),
+                            ProvePhaseInputs::Full(ProofInfo::new(
+                                self.input.clone(),
+                                1,
+                                vec![0],
+                                0,
+                            )),
                             ProofOptions::new(
                                 false,
                                 self.aggregation,
@@ -330,20 +265,38 @@ impl ZiskProve {
                                 self.save_proofs,
                                 self.output_dir.clone(),
                             ),
+                            ProvePhase::Full,
                         )
                         .map_err(|e| anyhow::anyhow!("Error generating proof: {}", e))?;
+
+                    (proof_id, vadcop_final_proof) =
+                        if let ProvePhaseResult::Full(proof_id, vadcop_final_proof) = result {
+                            (proof_id, vadcop_final_proof)
+                        } else {
+                            (None, None)
+                        };
                 }
             };
         }
 
-        if proofman.get_rank() == Some(0) || proofman.get_rank().is_none() {
+        if mpi_ctx.rank == 0 {
             let elapsed = start.elapsed();
 
-            let (result, _stats): (ZiskExecutionResult, Arc<Mutex<ExecutorStats>>) = *witness_lib
-                .get_execution_result()
-                .ok_or_else(|| anyhow::anyhow!("No execution result found"))?
-                .downcast::<(ZiskExecutionResult, Arc<Mutex<ExecutorStats>>)>()
-                .map_err(|_| anyhow::anyhow!("Failed to downcast execution result"))?;
+            #[allow(clippy::type_complexity)]
+            let (result, _stats, _): (
+                ZiskExecutionResult,
+                Arc<Mutex<ExecutorStats>>,
+                Arc<Mutex<HashMap<usize, Stats>>>,
+            ) =
+                *witness_lib
+                    .get_execution_result()
+                    .ok_or_else(|| anyhow::anyhow!("No execution result found"))?
+                    .downcast::<(
+                        ZiskExecutionResult,
+                        Arc<Mutex<ExecutorStats>>,
+                        Arc<Mutex<HashMap<usize, Stats>>>,
+                    )>()
+                    .map_err(|_| anyhow::anyhow!("Failed to downcast execution result"))?;
 
             let elapsed = elapsed.as_secs_f64();
             tracing::info!("");
@@ -362,32 +315,43 @@ impl ZiskProve {
                 let log_path = self.output_dir.join("result.json");
                 ProofLog::write_json_log(&log_path, &logs)
                     .map_err(|e| anyhow::anyhow!("Error generating log: {}", e))?;
-                // Save the vadcop final proof
+
+                // Save the uncompressed vadcop final proof
                 let output_file_path = self.output_dir.join("vadcop_final_proof.bin");
-                // write a Vec<u64> to a bin file stored in output_file_path
+                let vadcop_proof = vadcop_final_proof.unwrap();
                 let mut file = File::create(output_file_path)?;
-                file.write_all(cast_slice(&vadcop_final_proof.unwrap()))?;
+                file.write_all(cast_slice(&vadcop_proof))?;
+
+                // Save the compressed vadcop final proof using zstd (fastest compression level)
+                let compressed_output_path =
+                    self.output_dir.join("vadcop_final_proof.compressed.bin");
+                let compressed_file = File::create(&compressed_output_path)?;
+                let mut encoder = Encoder::new(compressed_file, 1)?;
+                encoder.write_all(cast_slice(&vadcop_proof))?;
+                encoder.finish()?;
+
+                let original_size = vadcop_proof.len() * 8;
+                let compressed_size = std::fs::metadata(&compressed_output_path)?.len();
+                let compression_ratio = compressed_size as f64 / original_size as f64;
+
+                println!("Vadcop final proof saved:");
+                println!("  Original: {} bytes", original_size);
+                println!(
+                    "  Compressed: {} bytes (ratio: {:.2}x)",
+                    compressed_size, compression_ratio
+                );
             }
 
             // Store the stats in stats.json
             #[cfg(feature = "stats")]
             {
-                _stats.lock().unwrap().add_stat(ExecutorStatsEnum::End(ExecutorStatsDuration {
-                    start_time: Instant::now(),
-                    duration: Duration::new(0, 1),
-                }));
+                let stats_id = _stats.lock().unwrap().get_id();
+                _stats.lock().unwrap().add_stat(0, stats_id, "END", 0, ExecutorStatsEvent::Mark);
                 _stats.lock().unwrap().store_stats();
             }
         }
 
         proofman.set_barrier();
-
-        if self.asm.is_some() {
-            // Shut down ASM microservices
-            tracing::info!("<<< [{}] Shutting down ASM microservices.", mpi_context.world_rank);
-            asm_services.stop_asm_services()?;
-        }
-
         Ok(())
     }
 
@@ -401,16 +365,11 @@ impl ZiskProve {
 
         println!("{: >12} {}", "Elf".bright_green().bold(), self.elf.display());
 
-        if self.asm.is_some() {
-            let asm_path = self.asm.as_ref().unwrap().display();
-            println!("{: >12} {}", "ASM runner".bright_green().bold(), asm_path);
-        } else {
-            println!(
-                "{: >12} {}",
-                "Emulator".bright_green().bold(),
-                "Running in emulator mode".bright_yellow()
-            );
-        }
+        println!(
+            "{: >12} {}",
+            "Emulator".bright_green().bold(),
+            "Running in emulator mode".bright_yellow()
+        );
 
         if self.input.is_some() {
             let inputs_path = self.input.as_ref().unwrap().display();

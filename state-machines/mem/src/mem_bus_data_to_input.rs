@@ -40,7 +40,7 @@ impl MemBusDataToInput {
     /// # Parameters
     /// - `addr_w`: The memory address (aligned to 8 bytes).
     /// - `data`: The data associated with the memory access.
-    fn process_unaligned_single_read(addr_w: u32, data: &[u64]) -> Vec<MemInput> {
+    fn process_unaligned_single_read(addr_w: u64, data: &[u64]) -> Vec<MemInput> {
         let value = MemBusData::get_mem_values(data)[0];
         let step = MemBusData::get_step(data);
         vec![MemInput::new(addr_w, false, step, value)]
@@ -57,7 +57,7 @@ impl MemBusDataToInput {
     /// - `addr_w`: The memory address (aligned to 8 bytes).
     /// - `bytes`: The number of bytes to be written.
     /// - `data`: The data associated with the memory access.
-    fn process_unaligned_single_write(addr_w: u32, bytes: u8, data: &[u64]) -> Vec<MemInput> {
+    fn process_unaligned_single_write(addr_w: u64, bytes: u8, data: &[u64]) -> Vec<MemInput> {
         let read_values = MemBusData::get_mem_values(data);
         let write_values = MemHelpers::get_write_values(
             MemBusData::get_addr(data),
@@ -81,7 +81,7 @@ impl MemBusDataToInput {
     /// # Parameters
     /// - `addr_w`: The memory address (aligned to 8 bytes).
     /// - `data`: The data associated with the memory access.
-    fn process_unaligned_double_read(addr_w: u32, data: &[u64]) -> Vec<MemInput> {
+    fn process_unaligned_double_read(addr_w: u64, data: &[u64]) -> Vec<MemInput> {
         let read_values = MemBusData::get_mem_values(data);
         let step = MemBusData::get_step(data);
         vec![
@@ -101,7 +101,7 @@ impl MemBusDataToInput {
     /// - `addr_w`: The memory address (aligned to 8 bytes).
     /// - `bytes`: The number of bytes to be written.
     /// - `data`: The data associated with the memory access.
-    fn process_unaligned_double_write(addr_w: u32, bytes: u8, data: &[u64]) -> Vec<MemInput> {
+    fn process_unaligned_double_write(addr_w: u64, bytes: u8, data: &[u64]) -> Vec<MemInput> {
         let read_values = MemBusData::get_mem_values(data);
         let write_values = MemHelpers::get_write_values(
             MemBusData::get_addr(data),

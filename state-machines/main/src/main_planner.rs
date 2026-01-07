@@ -5,10 +5,8 @@
 
 use std::any::Any;
 
-use asm_runner::MinimalTraces;
 use fields::PrimeField;
-use proofman_common::PreCalculate;
-use zisk_common::{BusDeviceMetrics, CheckPoint, ChunkId, InstanceType, Metrics, Plan, SegmentId};
+use zisk_common::{BusDeviceMetrics, CheckPoint, ChunkId, EmuTrace, InstanceType, Metrics, Plan, SegmentId};
 use zisk_pil::{MainTrace, MAIN_AIR_IDS, ZISK_AIRGROUP_ID};
 
 use crate::MainCounter;
@@ -33,18 +31,10 @@ impl MainPlanner {
     /// # Returns
     /// A vector of `Plan` instances, each corresponding to a segment of the main trace.
     pub fn plan<F: PrimeField>(
-        min_traces: &MinimalTraces,
+        min_traces: &Vec<EmuTrace>,
         main_counters: Vec<(ChunkId, Box<dyn BusDeviceMetrics>)>,
         min_traces_size: u64,
     ) -> (Vec<Plan>, Vec<(u64, u32)>) {
-        let min_traces = match min_traces {
-            MinimalTraces::AsmEmuTrace(asm_min_traces) => &asm_min_traces.vec_chunks,
-            MinimalTraces::EmuTrace(vec_chunks) => vec_chunks,
-            MinimalTraces::None => {
-                panic!("Minimal traces are required for planning the main state machine.");
-            }
-        };
-
         let num_rows = MainTrace::<F>::NUM_ROWS as u64;
 
         let mut publics = Vec::new();
@@ -70,8 +60,8 @@ impl MainPlanner {
                     Some(SegmentId(segment_id)),
                     InstanceType::Instance,
                     CheckPoint::Single(ChunkId(segment_id)),
-                    PreCalculate::None,
                     Some(Box::new(segment_id == num_instances - 1) as Box<dyn Any>),
+                    4,
                 )
             })
             .collect();

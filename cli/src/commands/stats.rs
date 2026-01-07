@@ -1,12 +1,13 @@
 use anyhow::Result;
-use asm_runner::{AsmRunnerOptions, AsmServices};
 use clap::Parser;
 use colored::Colorize;
 use executor::{Stats, ZiskExecutionResult};
 use fields::Goldilocks;
 use libloading::{Library, Symbol};
 use proofman::ProofMan;
-use proofman_common::{json_to_debug_instances_map, DebugInfo, ParamsGPU, ProofOptions};
+use proofman_common::{
+    initialize_logger, json_to_debug_instances_map, DebugInfo, ParamsGPU, ProofOptions,
+};
 use rom_setup::{
     gen_elf_hash, get_elf_bin_file_path, get_elf_data_hash, get_rom_blowup_factor,
     DEFAULT_CACHE_PATH,
@@ -15,12 +16,11 @@ use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::{collections::HashMap, fs, path::PathBuf, thread, time::Instant};
 use zisk_common::{ExecutorStats, ZiskLibInitFn};
+// use zisk_common::ExecutorStatsEnum;
 use zisk_pil::*;
 
 use crate::{
-    commands::{
-        cli_fail_if_macos, get_proving_key, get_witness_computation_lib, initialize_mpi, Field,
-    },
+    commands::{get_proving_key, get_witness_computation_lib, Field},
     ux::print_banner,
     ZISK_VERSION_MESSAGE,
 };
@@ -94,9 +94,6 @@ pub struct ZiskStats {
     #[clap(short = 'x', long)]
     pub max_witness_stored: Option<usize>,
 
-    #[clap(short = 'c', long)]
-    pub chunk_size_bits: Option<u64>,
-
     #[clap(short = 'd', long)]
     pub debug: Option<Option<String>>,
 
@@ -104,14 +101,15 @@ pub struct ZiskStats {
     #[clap(long)]
     pub mpi_node: Option<usize>,
 
-    #[clap(long, default_value_t = false)]
+    #[clap(short = 'm', long, default_value_t = false)]
     pub minimal_memory: bool,
+
+    #[clap(short = 'j', long, default_value_t = false)]
+    pub shared_tables: bool,
 }
 
 impl ZiskStats {
     pub fn run(&mut self) -> Result<()> {
-        cli_fail_if_macos()?;
-
         print_banner();
 
         let proving_key = get_proving_key(self.proving_key.as_ref());
@@ -193,78 +191,57 @@ impl ZiskStats {
             gpu_params.with_max_witness_stored(self.max_witness_stored.unwrap());
         }
 
-        let proofman;
-        let mpi_context = initialize_mpi()?;
+        let proofman = ProofMan::<Goldilocks>::new(
+            proving_key,
+            custom_commits_map,
+            true,
+            false,
+            false,
+            gpu_params,
+            self.verbose.into(),
+        )
+        .expect("Failed to initialize proofman");
 
-        proofman_common::initialize_logger(self.verbose.into(), Some(mpi_context.world_rank));
+        let mpi_ctx = proofman.get_mpi_ctx();
 
-        let world_ranks;
+        initialize_logger(self.verbose.into(), Some(mpi_ctx.rank));
 
-        let world_rank = mpi_context.world_rank;
-        let local_rank = mpi_context.local_rank;
+        let world_ranks = mpi_ctx.n_processes;
+
+        let world_rank = mpi_ctx.rank;
+        let local_rank = mpi_ctx.node_rank;
         #[cfg(distributed)]
         {
-            let world = mpi_context.universe.world();
-            world_ranks = world.size() as usize;
+            let mut is_active = true;
 
             if let Some(mpi_node) = self.mpi_node {
-                let m2 = mpi_node as i32 * 2;
-                if mpi_context.world_rank < m2 || mpi_context.world_rank >= m2 + 2 {
-                    world.split_shared(mpi_context.world_rank);
-                    world.barrier();
-                    println!(
-                        "{}: {}",
-                        format!("Rank {}", mpi_context.world_rank).bright_yellow().bold(),
-                        "Exiting stats command.".bright_yellow()
-                    );
-                    return Ok(());
+                if local_rank != mpi_node as i32 {
+                    is_active = false;
                 }
             }
 
-            proofman = ProofMan::<Goldilocks>::new(
-                proving_key,
-                custom_commits_map,
-                true,
-                false,
-                false,
-                gpu_params,
-                self.verbose.into(),
-                Some(mpi_context.universe),
-            )
-            .expect("Failed to initialize proofman");
-        }
+            // All processes must participate in these calls:
+            let color = if is_active {
+                mpi::topology::Color::with_value(1)
+            } else {
+                mpi::topology::Color::undefined()
+            };
+            let _sub_comm = mpi_ctx.world.split_by_color(color);
 
-        #[cfg(not(distributed))]
-        {
-            proofman = ProofMan::<Goldilocks>::new(
-                proving_key,
-                custom_commits_map,
-                true,
-                false,
-                false,
-                gpu_params,
-                self.verbose.into(),
-            )
-            .expect("Failed to initialize proofman");
-            world_ranks = 1;
+            mpi_ctx.world.split_shared(world_rank);
+
+            if !is_active {
+                println!(
+                    "{}: {}",
+                    format!("Rank {local_rank}").bright_yellow().bold(),
+                    "Inactive rank, skipping computation.".bright_yellow()
+                );
+
+                return Ok(());
+            }
         }
 
         let mut witness_lib;
-
-        let asm_services = AsmServices::new(world_rank, local_rank, self.port);
-        let asm_runner_options = AsmRunnerOptions::new()
-            .with_verbose(self.verbose > 0)
-            .with_base_port(self.port)
-            .with_world_rank(world_rank)
-            .with_local_rank(local_rank)
-            .with_unlock_mapped_memory(self.unlock_mapped_memory);
-
-        if self.asm.is_some() {
-            // Start ASM microservices
-            tracing::info!(">>> [{}] Starting ASM microservices.", mpi_context.world_rank,);
-
-            asm_services.start_asm_services(self.asm.as_ref().unwrap(), asm_runner_options)?;
-        }
 
         match self.field {
             Field::Goldilocks => {
@@ -276,13 +253,11 @@ impl ZiskStats {
                 witness_lib = witness_lib_constructor(
                     self.verbose.into(),
                     self.elf.clone(),
-                    self.asm.clone(),
-                    asm_rom,
-                    self.chunk_size_bits,
                     Some(world_rank),
                     Some(local_rank),
                     self.port,
                     self.unlock_mapped_memory,
+                    self.shared_tables,
                 )
                 .expect("Failed to initialize witness library");
 
@@ -306,10 +281,11 @@ impl ZiskStats {
             }
         };
 
-        let (_, stats): (ZiskExecutionResult, Arc<Mutex<ExecutorStats>>) = *witness_lib
+        #[allow(clippy::type_complexity)]
+        let (_, stats, witness_stats): (ZiskExecutionResult, Arc<Mutex<ExecutorStats>>, Arc<Mutex<HashMap<usize,Stats>>>) = *witness_lib
             .get_execution_result()
             .ok_or_else(|| anyhow::anyhow!("No execution result found"))?
-            .downcast::<(ZiskExecutionResult, Arc<Mutex<ExecutorStats>>)>()
+            .downcast::<(ZiskExecutionResult, Arc<Mutex<ExecutorStats>>, Arc<Mutex<HashMap<usize, Stats>>>)>()
             .map_err(|_| anyhow::anyhow!("Failed to downcast execution result"))?;
 
         if world_rank % 2 == 1 {
@@ -322,13 +298,9 @@ impl ZiskStats {
             "-".repeat(55)
         );
 
-        stats.lock().unwrap().print_stats();
+        Self::print_stats(&witness_stats);
 
-        if self.asm.is_some() {
-            // Shut down ASM microservices
-            tracing::info!("<<< [{}] Shutting down ASM microservices.", world_rank);
-            asm_services.stop_asm_services()?;
-        }
+        stats.lock().unwrap().print_stats();
 
         Ok(())
     }
@@ -377,8 +349,9 @@ impl ZiskStats {
     ///
     /// # Arguments
     /// * `stats_mutex` - A reference to the Mutex holding the stats vector.
-    pub fn print_stats(stats: &[(usize, usize, Stats)]) {
-        println!("    Number of airs: {}", stats.len());
+    pub fn print_stats(executor_stats: &Mutex<HashMap<usize, Stats>>) {
+        let air_stats = executor_stats.lock().unwrap();
+        println!("    Number of airs: {}", air_stats.len());
         println!();
         println!("    Stats by Air:");
         println!(
@@ -387,30 +360,33 @@ impl ZiskStats {
         );
         println!("    {}", "-".repeat(70));
 
-        // Sort individual stats by (airgroup_id, air_id)
-        let mut sorted_stats = stats.to_vec();
-        sorted_stats.sort_by_key(|(airgroup_id, air_id, _)| (*airgroup_id, *air_id));
+        // Convert HashMap values to flat Vec
+        let mut sorted_stats: Vec<&Stats> = air_stats.values().collect();
+        sorted_stats.sort_by_key(|stat| (stat.airgroup_id, stat.air_id));
 
         let mut total_collect_time = 0;
         let mut total_witness_time = 0;
-        for (airgroup_id, air_id, stats) in sorted_stats.iter() {
+        for stat in sorted_stats.iter() {
+            let collect_ms = stat.collect_duration;
+            let witness_ms = stat.witness_duration;
+
             println!(
                 "    {:<8} {:<25} {:<8} {:<12} {:<12}",
-                air_id,
-                Self::air_name(*airgroup_id, *air_id),
-                stats.num_chunks,
-                stats.collect_duration,
-                stats.witness_duration,
+                stat.air_id,
+                Self::air_name(stat.airgroup_id, stat.air_id),
+                stat.num_chunks,
+                collect_ms,
+                witness_ms,
             );
             // Accumulate total times
-            total_collect_time += stats.collect_duration;
-            total_witness_time += stats.witness_duration;
+            total_collect_time += collect_ms;
+            total_witness_time += witness_ms;
         }
 
         // Group stats
-        let mut grouped: HashMap<(usize, usize), Vec<Stats>> = HashMap::new();
-        for (airgroup_id, air_id, stats) in stats.iter() {
-            grouped.entry((*airgroup_id, *air_id)).or_default().push(stats.clone());
+        let mut grouped: HashMap<(usize, usize), Vec<&Stats>> = HashMap::new();
+        for stat in air_stats.values() {
+            grouped.entry((stat.airgroup_id, stat.air_id)).or_default().push(stat);
         }
 
         println!();
@@ -436,13 +412,16 @@ impl ZiskStats {
             let (mut n_min, mut n_max, mut n_sum) = (usize::MAX, 0, 0usize);
 
             for e in &entries {
-                c_min = c_min.min(e.collect_duration);
-                c_max = c_max.max(e.collect_duration);
-                c_sum += e.collect_duration;
+                let collect_ms = e.collect_duration;
+                let witness_ms = e.witness_duration;
 
-                w_min = w_min.min(e.witness_duration);
-                w_max = w_max.max(e.witness_duration);
-                w_sum += e.witness_duration;
+                c_min = c_min.min(collect_ms);
+                c_max = c_max.max(collect_ms);
+                c_sum += collect_ms;
+
+                w_min = w_min.min(witness_ms);
+                w_max = w_max.max(witness_ms);
+                w_sum += witness_ms;
 
                 n_min = n_min.min(e.num_chunks);
                 n_max = n_max.max(e.num_chunks);
@@ -483,21 +462,24 @@ impl ZiskStats {
             val if val == ROM_DATA_AIR_IDS[0] => "ROM_DATA".to_string(),
             val if val == INPUT_DATA_AIR_IDS[0] => "INPUT_DATA".to_string(),
             val if val == MEM_ALIGN_AIR_IDS[0] => "MEM_ALIGN".to_string(),
-            val if val == MEM_ALIGN_ROM_AIR_IDS[0] => "MEM_ALIGN_ROM".to_string(),
+            val if val == MEM_ALIGN_BYTE_AIR_IDS[0] => "MEM_ALIGN_BYTE".to_string(),
+            val if val == MEM_ALIGN_READ_BYTE_AIR_IDS[0] => "MEM_ALIGN_READ_BYTE".to_string(),
+            val if val == MEM_ALIGN_WRITE_BYTE_AIR_IDS[0] => "MEM_ALIGN_WRITE_BYTE".to_string(),
+            // val if val == MEM_ALIGN_ROM_AIR_IDS[0] => "MEM_ALIGN_ROM".to_string(),
             val if val == ARITH_AIR_IDS[0] => "ARITH".to_string(),
-            val if val == ARITH_TABLE_AIR_IDS[0] => "ARITH_TABLE".to_string(),
-            val if val == ARITH_RANGE_TABLE_AIR_IDS[0] => "ARITH_RANGE_TABLE".to_string(),
+            // val if val == ARITH_TABLE_AIR_IDS[0] => "ARITH_TABLE".to_string(),
+            // val if val == ARITH_RANGE_TABLE_AIR_IDS[0] => "ARITH_RANGE_TABLE".to_string(),
             val if val == ARITH_EQ_AIR_IDS[0] => "ARITH_EQ".to_string(),
-            val if val == ARITH_EQ_LT_TABLE_AIR_IDS[0] => "ARITH_EQ_LT_TABLE".to_string(),
+            // val if val == ARITH_EQ_LT_TABLE_AIR_IDS[0] => "ARITH_EQ_LT_TABLE".to_string(),
             val if val == BINARY_AIR_IDS[0] => "BINARY".to_string(),
             val if val == BINARY_ADD_AIR_IDS[0] => "BINARY_ADD".to_string(),
-            val if val == BINARY_TABLE_AIR_IDS[0] => "BINARY_TABLE".to_string(),
+            // val if val == BINARY_TABLE_AIR_IDS[0] => "BINARY_TABLE".to_string(),
             val if val == BINARY_EXTENSION_AIR_IDS[0] => "BINARY_EXTENSION".to_string(),
-            val if val == BINARY_EXTENSION_TABLE_AIR_IDS[0] => "BINARY_EXTENSION_TABLE".to_string(),
+            // val if val == BINARY_EXTENSION_TABLE_AIR_IDS[0] => "BINARY_EXTENSION_TABLE".to_string(),
             val if val == KECCAKF_AIR_IDS[0] => "KECCAKF".to_string(),
-            val if val == KECCAKF_TABLE_AIR_IDS[0] => "KECCAKF_TABLE".to_string(),
+            // val if val == KECCAKF_TABLE_AIR_IDS[0] => "KECCAKF_TABLE".to_string(),
             val if val == SHA_256_F_AIR_IDS[0] => "SHA_256_F".to_string(),
-            val if val == SPECIFIED_RANGES_AIR_IDS[0] => "SPECIFIED_RANGES".to_string(),
+            // val if val == SPECIFIED_RANGES_AIR_IDS[0] => "SPECIFIED_RANGES".to_string(),
             _ => format!("Unknown air_id: {air_id}"),
         }
     }

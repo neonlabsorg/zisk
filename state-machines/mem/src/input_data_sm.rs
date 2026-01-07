@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use crate::{MemInput, MemModule, MemPreviousSegment, MEM_BYTES_BITS, SEGMENT_ADDR_MAX_RANGE};
+use crate::{MemInput, MemModule, MemPreviousSegment};
+use mem_common::{MEM_BYTES_BITS, SEGMENT_ADDR_MAX_RANGE};
 
 use fields::PrimeField64;
 use pil_std_lib::Std;
@@ -9,13 +10,13 @@ use zisk_common::SegmentId;
 use zisk_core::{INPUT_ADDR, MAX_INPUT_SIZE};
 use zisk_pil::{InputDataAirValues, InputDataTrace};
 
-pub const INPUT_DATA_W_ADDR_INIT: u32 = INPUT_ADDR as u32 >> MEM_BYTES_BITS;
-pub const INPUT_DATA_W_ADDR_END: u32 = (INPUT_ADDR + MAX_INPUT_SIZE - 1) as u32 >> MEM_BYTES_BITS;
+pub const INPUT_DATA_W_ADDR_INIT: u64 = INPUT_ADDR >> MEM_BYTES_BITS;
+pub const INPUT_DATA_W_ADDR_END: u64 = (INPUT_ADDR + MAX_INPUT_SIZE - 1) >> MEM_BYTES_BITS;
 
 #[allow(clippy::assertions_on_constants)]
 const _: () = {
     assert!(
-        INPUT_ADDR + MAX_INPUT_SIZE - 1 <= 0xFFFF_FFFF,
+        MAX_INPUT_SIZE <= 0xFFFF_FFFF,
         "INPUT_DATA memory exceeds the 32-bit addressable range"
     );
 };
@@ -42,8 +43,11 @@ impl<F: PrimeField64> InputDataSM<F> {
 }
 
 impl<F: PrimeField64> MemModule<F> for InputDataSM<F> {
-    fn get_addr_range(&self) -> (u32, u32) {
+    fn get_addr_range(&self) -> (u64, u64) {
         (INPUT_DATA_W_ADDR_INIT, INPUT_DATA_W_ADDR_END)
+    }
+    fn is_dual(&self) -> bool {
+        false
     }
 
     // TODO PRE: proxy calculate if exists jmp on step out-of-range, adding internal inputs
@@ -77,10 +81,10 @@ impl<F: PrimeField64> MemModule<F> for InputDataSM<F> {
         let mut range_check_data: Vec<u32> = vec![0; 1 << 16];
 
         // range of instance
-        let range_id = self.std.get_range(0, SEGMENT_ADDR_MAX_RANGE as i64, None);
-        self.std.range_check((previous_segment.addr - INPUT_DATA_W_ADDR_INIT) as i64, 1, range_id);
+        let range_id = self.std.get_range_id(0, SEGMENT_ADDR_MAX_RANGE as i64, None);
+        self.std.range_check(range_id, (previous_segment.addr - INPUT_DATA_W_ADDR_INIT) as i64, 1);
 
-        let mut last_addr: u32 = previous_segment.addr;
+        let mut last_addr: u64 = previous_segment.addr;
         let mut last_step: u64 = previous_segment.step;
         let mut last_value: u64 = previous_segment.value;
         let mut i = 0;
@@ -97,12 +101,12 @@ impl<F: PrimeField64> MemModule<F> for InputDataSM<F> {
                 let mut internal_reads = distance - 1;
                 let incomplete = (i + internal_reads as usize) >= trace.num_rows;
                 if incomplete {
-                    internal_reads = (trace.num_rows - i) as u32;
+                    internal_reads = (trace.num_rows - i) as u64;
                 }
 
                 trace[i].addr_changes = F::ONE;
                 last_addr += 1;
-                trace[i].addr = F::from_u32(last_addr);
+                trace[i].addr = F::from_u64(last_addr);
 
                 // the step, value of internal reads isn't relevant
                 last_step = 0;
@@ -119,17 +123,17 @@ impl<F: PrimeField64> MemModule<F> for InputDataSM<F> {
                 for _j in 1..internal_reads {
                     trace[i] = trace[i - 1];
                     last_addr += 1;
-                    trace[i].addr = F::from_u32(last_addr);
+                    trace[i].addr = F::from_u64(last_addr);
 
                     i += 1;
                 }
-                range_check_data[0] += 4 * internal_reads;
+                range_check_data[0] += 4 * internal_reads as u32;
                 if incomplete {
                     break;
                 }
             }
 
-            trace[i].addr = F::from_u32(mem_op.addr);
+            trace[i].addr = F::from_u64(mem_op.addr);
             trace[i].step = F::from_u64(mem_op.step);
             trace[i].sel = F::ONE;
             trace[i].is_free_read = F::from_bool(mem_op.addr == INPUT_DATA_W_ADDR_INIT);
@@ -175,23 +179,23 @@ impl<F: PrimeField64> MemModule<F> for InputDataSM<F> {
             trace[i].addr_changes = F::ZERO;
         }
 
-        self.std.range_check((INPUT_DATA_W_ADDR_END - last_addr) as i64, 1, range_id);
+        self.std.range_check(range_id, (INPUT_DATA_W_ADDR_END - last_addr) as i64, 1);
 
         // range of chunks
-        let range_id = self.std.get_range(0, (1 << 16) - 1, None);
+        let range_id = self.std.get_range_id(0, (1 << 16) - 1, None);
         for value_chunk in &value {
             let value = value_chunk.as_canonical_u64();
             range_check_data[value as usize] += padding_size as u32;
         }
-        self.std.range_checks(range_check_data, range_id);
+        self.std.range_checks(range_id, range_check_data);
 
         let mut air_values = InputDataAirValues::<F>::new();
         air_values.segment_id = F::from_usize(segment_id.into());
         air_values.is_first_segment = F::from_bool(segment_id == 0);
         air_values.is_last_segment = F::from_bool(is_last_segment);
         air_values.previous_segment_step = F::from_u64(previous_segment.step);
-        air_values.previous_segment_addr = F::from_u32(previous_segment.addr);
-        air_values.segment_last_addr = F::from_u32(last_addr);
+        air_values.previous_segment_addr = F::from_u64(previous_segment.addr);
+        air_values.segment_last_addr = F::from_u64(last_addr);
         air_values.segment_last_step = F::from_u64(last_step);
 
         air_values.previous_segment_value[0] = F::from_u32(previous_segment.value as u32);

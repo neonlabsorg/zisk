@@ -7,17 +7,25 @@
     inputs.systems.follows = "systems";
   };
 
-  outputs = { self, nixpkgs, flake-utils, ... }:
+  inputs.rust-overlay = {
+    url = "github:oxalica/rust-overlay";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  outputs = { self, nixpkgs, flake-utils, rust-overlay, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs {
           inherit system;
+          overlays = [ rust-overlay.overlays.default ];
           config.allowUnfreePredicate = pkg:
             builtins.elem (nixpkgs.lib.getName pkg) [ "mkl" ];
         };
+        rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
       in {
         devShells.default = pkgs.mkShell {
           packages = [
+            pkgs.nodejs_24
             pkgs.grpc
             pkgs.gmp
             pkgs.jq
@@ -35,7 +43,31 @@
             ++ (pkgs.lib.optionals pkgs.stdenv.isDarwin
               [ pkgs.darwin.apple_sdk.frameworks.Security ]);
 
+          buildInputs = [
+            pkgs.mpich
+            pkgs.mpich-pmix
+            pkgs.llvm
+            pkgs.libclang.lib
+            pkgs.clang
+            pkgs.cargo
+            pkgs.cargo-c
+            #rust
+            pkgs.rustc
+            #pkgs.latest.rustChannels.stable.rust
+            #pkgs.latest.rustChannels.stable.rust-src
+            pkgs.rustup
+            pkgs.mpi
+          ];
+
+          RUST_SRC_PATH = "${rust.override {
+              extensions = [ "rust-src" ];
+          } }/lib/rustlib/src/rust/library";
+
           RUSTFLAGS = (builtins.map (a: "-L ${a}/lib") [ pkgs.libgit2 ]);
+
+          shellHook = ''
+            export LIBCLANG_PATH=${pkgs.libclang.lib}/lib
+          '';
         };
       });
 }
