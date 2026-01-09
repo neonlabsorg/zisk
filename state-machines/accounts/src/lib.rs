@@ -49,12 +49,10 @@ impl<F: PrimeField64> AccountsSMBundle<F> {
         let accounts_init = AccountsInitSM::new(init_state.clone(), poseidon.clone());
         let init_hash = accounts_init.record_hashes();
         *self.init_sm.write().unwrap() = Some(accounts_init);
-        println!("in accounts init {:?}", init_state.xor_hash());
 
         let accounts_result = AccountsResultSM::new(init_state.clone(), final_state.clone(), poseidon.clone());
         let result_hash = accounts_result.record_hashes();
         *self.result_sm.write().unwrap() = Some(accounts_result);
-        println!("in accounts final {:?}", final_state.xor_hash());
         println!("hashes from init {init_hash:?} {result_hash:?} equal {}", init_hash == result_hash);
 
         (init_hash, result_hash)
