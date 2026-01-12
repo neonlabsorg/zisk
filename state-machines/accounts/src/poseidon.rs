@@ -9,6 +9,8 @@ pub const POSEIDON_BITRATE: usize = 4;
 pub const POSEIDON_WIDTH: usize = 12;
 const POSEIDON_SUBWORDS: usize = 7;
 
+pub const POSEIDON_CHUNK_SIZE: usize = 2_usize.pow(21_u32);
+
 #[derive(Clone)]
 pub struct PoseidonPermuter<F: PrimeField64> {
     arc: [F; POSEIDON_WIDTH],
@@ -55,6 +57,14 @@ impl Default for PoseidonPermuter<Goldilocks> {
 }
 
 impl<F: PrimeField64> PoseidonPermuter<F> {
+    fn hash_rows(&self) -> usize {
+        self.full_rounds * 2 + self.partial_rounds
+    }
+
+    fn segment_size(&self) -> usize {
+        POSEIDON_CHUNK_SIZE / self.hash_rows()
+    }
+
     fn add_arc(&self, state: &[F; POSEIDON_WIDTH]) -> [F; POSEIDON_WIDTH] {
         let mut result = state.clone();
         for i in 0..POSEIDON_WIDTH {
@@ -173,7 +183,9 @@ impl<F: PrimeField64> PoseidonSM<F> {
 
 impl<F: PrimeField64> ComponentBuilder<F> for PoseidonSM<F> {
     fn build_planner(&self) -> Box<dyn zisk_common::Planner> {
-        Box::new(PoseidonPlanner)
+        let segment_size = self.permuter.segment_size();
+        let segments_count = 1 + (self.input_rows.read().unwrap().len() - 1) / segment_size;
+        Box::new(PoseidonPlanner { segment_size, segments_count })
     }
 
     fn build_counter(&self) -> Option<Box<dyn BusDeviceMetrics>> {
@@ -218,7 +230,9 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
         let mut trace = PoseidonPermuterTrace::<F>::new_from_vec(trace_buffer);
 
         let mut row = 0;
-        for (_i, input) in self.sm.input_rows.read().unwrap().iter().enumerate() {
+        let first_row = self.ictx.plan.segment_id.unwrap().0 * self.sm.permuter.segment_size();
+
+        for (_i, input) in self.sm.input_rows.read().unwrap()[first_row..].iter().take(self.sm.permuter.segment_size()).enumerate() {
             let output = self.sm.permuter.permute(input);
             let mut state = [F::ZERO; POSEIDON_WIDTH];
             for j in 0..self.sm.permuter.full_rounds {
@@ -317,19 +331,25 @@ impl<F: PrimeField64> zisk_common::Instance<F> for PoseidonInstance<F> {
 
 }
 
-struct PoseidonPlanner;
+struct PoseidonPlanner {
+    segment_size: usize,
+    segments_count: usize
+}
 
 impl zisk_common::Planner for PoseidonPlanner {
     fn plan(&self, metrics: Vec<(zisk_common::ChunkId, Box<dyn BusDeviceMetrics>)>) -> Vec<zisk_common::Plan> {
         let vec_chunk_ids = metrics.iter().map(|(chunk_id, _)| *chunk_id).collect::<Vec<_>>();
-        vec![Plan::new(
-            ZISK_AIRGROUP_ID,
-            POSEIDON_PERMUTER_AIR_IDS[0],
-            None,
-            zisk_common::InstanceType::Instance,
-            CheckPoint::Multiple(vec_chunk_ids),
-            None,
-            1,
-        )]
+        (0..self.segments_count)
+            .map(|segment|
+               Plan::new(
+                    ZISK_AIRGROUP_ID,
+                    POSEIDON_PERMUTER_AIR_IDS[0],
+                    Some(zisk_common::SegmentId(segment)),
+                    zisk_common::InstanceType::Instance,
+                    CheckPoint::Multiple(vec_chunk_ids.clone()),
+                    None,
+                    self.segment_size,
+                ))
+            .collect()
     }
 }
