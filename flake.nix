@@ -19,7 +19,9 @@
           inherit system;
           overlays = [ rust-overlay.overlays.default ];
           config.allowUnfreePredicate = pkg:
-            builtins.elem (nixpkgs.lib.getName pkg) [ "mkl" ];
+          builtins.elem (nixpkgs.lib.getName pkg) [ "mkl"
+            "cuda-merged" "cuda_cuobjdump" "cuda_gdb" "cuda_nvcc" "cuda_nvdisasm" "cuda_nvprune" "cuda_cccl" "cuda_cudart" "cuda_cupti" "cuda_cuxxfilt" "cuda_nvml_dev" "cuda_nvrtc" "cuda_nvtx" "cuda_profiler_api" "cuda_sanitizer_api" "libcublas" "libcufft" "libcurand" "libcusolver" "libnvjitlink" "libcusparse" "libnpp"
+          ];
         };
         rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
       in {
@@ -57,6 +59,7 @@
             #pkgs.latest.rustChannels.stable.rust-src
             pkgs.rustup
             pkgs.mpi
+            pkgs.cudaPackages.cudatoolkit
           ];
 
           RUST_SRC_PATH = "${rust.override {
